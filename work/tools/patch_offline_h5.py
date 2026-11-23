@@ -55,6 +55,7 @@ HOOK = r"""
     QuickSdkMgr.prototype.getOaid=function(){return "";};QuickSdkMgr.prototype.role=function(){save();};
     QuickSdkMgr.prototype.pay=function(o,cb){var x={status:false,message:"离线版本不连接真实支付，请使用本地离线菜单"};cb&&cb(x);return x;};
     QuickSdkMgr.prototype.adVideo=function(t,cb){var x={status:false,message:"离线版本不提供广告"};cb&&cb(x);return x;};
+    QuickSdkMgr.prototype.share=function(t,cb){var x={status:false,message:"离线版本不连接分享服务"};cb&&cb(x);return x;};
     QuickSdkMgr.prototype.adManExtraPay2Interval=function(){};QuickSdkMgr.prototype.tickHeartBeat=function(){};QuickSdkMgr.prototype.exitGame=function(){};
   }
   if(typeof GameMainBase!=="undefined"){
@@ -72,13 +73,20 @@ HOOK = r"""
       if(c==="notice")return Promise.resolve({ret:0,dir_notice_list:[]});
       return Promise.resolve({ret:1,msg:"离线模式：服务端请求已禁用",offline:true});
     };
-    NM.prototype.init=function(host,port,onConnect){this._offlineConnection=true;if(this.socketClient){this.socketClient.isConnected=true;this.socketClient.destroy=function(){};}
-      log("local socket stub",host,port);setTimeout(function(){try{onConnect&&onConnect.run&&onConnect.run();}catch(e){log("connect cb",e);}},0);};
+    try{Object.defineProperty(NM.prototype,"isConnected",{configurable:true,get:function(){return true;}});}catch(_){}
+    NM.prototype.init=function(host,port,onConnect){
+      this._offlineConnection=true;
+      if(this.socketClient){this.socketClient.destroy=function(){};this.socketClient.connect=function(){};this.socketClient.sendData=function(){return {trans_id:0};};}
+      log("local socket stub",host,port);
+      setTimeout(function(){try{if(onConnect&&onConnect.run)onConnect.run();else if(typeof onConnect==="function")onConnect();}catch(e){log("connect cb",e);}},0);
+    };
     NM.prototype.request=function(req,Resp,cb,ctx){
-      var r=new Resp();r.ret=1;
+      var r=new Resp();r.ret=0;
+      log("local protobuf",req&&req.constructor&&req.constructor.name,Resp&&Resp.name);
+      try{for(var key in r)if(r[key]===null)r[key]={};}catch(_){}
       if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();current=r.userInfo;r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
         r.openSvrDays=20;r.openSvrTime=Math.floor(Date.now()/1000)-20*86400;r.mergeSvrDays=0;r.mergeSvrTime=0;r.loginNotice={title:"",nickName:"",content:"",name:"",date:""};log("local LoginRsp");}
-      else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
+      else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
       if(cb)setTimeout(function(){try{cb.call(ctx||null,r);}catch(e){log("response callback",e);}},0);
       return Promise.resolve(r);
     };
