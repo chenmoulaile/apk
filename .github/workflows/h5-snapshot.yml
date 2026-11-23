@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir -p tmp/h5-snapshot/api
           DOMAIN="https://cjjlqwxweb.ruiruiyouxi.com"
-          QUERY="showOne=1&login_way=102&envi=2&version=1.0.1&platform=unknow&mix_way=5"
+          QUERY="showOne=1&login_way=102&envi=2&version=1.0.1&platform=unknow&mix_way=4"
           {
             echo "=== DNS ==="
             getent ahosts cjjlqwxweb.ruiruiyouxi.com || true
