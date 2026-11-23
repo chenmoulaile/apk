@@ -1,0 +1,93 @@
+{
+  "source": "assets/libQuickSDKH5_To_Client.js in the uploaded original APK",
+  "scope": "QuickSDK H5-to-native bridge callback; NOT the game's gateway login response",
+  "callback": {
+    "input": {
+      "transport": "base64-encoded JSON string passed to CallbackFromAndroid, decoded by CallbackFromIOS",
+      "outer_fields": {
+        "action": "loginNotify",
+        "data": {
+          "status": "boolean-like value; copied from callData.data.status",
+          "uid": "string; copied from callData.data.uid",
+          "username": "string; copied from callData.data.username",
+          "token": "string; copied from callData.data.token",
+          "oaid": "string; copied from callData.data.oaid",
+          "status_key": "used as message when status is not true"
+        }
+      }
+    },
+    "output_to_game": {
+      "status": "callData.data.status",
+      "channelId": "QuickSDK.quickData.channel_type",
+      "data": {
+        "uid": "callData.data.uid",
+        "username": "callData.data.username",
+        "token": "callData.data.token",
+        "isLogin": true,
+        "channelId": "QuickSDK.quickData.channel_type",
+        "oaid": "callData.data.oaid",
+        "message": "登录成功 when status == true; otherwise callData.data.status_key"
+      }
+    },
+    "implementation_note": "The bridge writes data.isLogin=true even when the top-level status is false. Check top-level status for success."
+  },
+  "role_update": {
+    "required_fields": [
+      "isCreateRole",
+      "serverId",
+      "serverName",
+      "userRoleId",
+      "userRoleName",
+      "userRoleBalance",
+      "vipLevel",
+      "userRoleLevel",
+      "partyName"
+    ],
+    "integer_fields": [
+      "userRoleBalance",
+      "userRoleLevel",
+      "vipLevel"
+    ],
+    "derived_aliases": {
+      "gameRoleName": "userRoleName",
+      "gameRoleId": "userRoleId",
+      "gameUserBalance": "userRoleBalance",
+      "gameUserLevel": "userRoleLevel"
+    },
+    "native_action": "updateRole"
+  },
+  "payment": {
+    "required_fields": [
+      "productCode",
+      "goodsId",
+      "uid",
+      "userRoleId",
+      "userRoleName",
+      "userServer",
+      "userLevel",
+      "quantifier",
+      "count",
+      "cpOrderNo",
+      "amount",
+      "subject",
+      "desc",
+      "callbackUrl",
+      "extrasParams"
+    ],
+    "pay_notify_fields": [
+      "status",
+      "channelOrderNo",
+      "cpOrderNo",
+      "extarsParams",
+      "message"
+    ],
+    "note": "Offline build should not invoke real payment. Use a local unlock/developer menu instead."
+  },
+  "unverified": [
+    "game gateway login request path, method, headers, signing and parameters",
+    "game gateway login response JSON",
+    "player profile, currency, inventory and item schemas",
+    "game save/load protocol",
+    "ranking service used by the game (as distinct from SDK leaderboard libraries)"
+  ]
+}
