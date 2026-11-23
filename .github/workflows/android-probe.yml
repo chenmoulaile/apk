@@ -1,0 +1,145 @@
+name: Android emulator probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/android-probe.yml"
+      - "com.ruirui.cjjlq.apk"
+      - "work/tools/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-probe-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Install APK and collect game resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare workspace
+        shell: bash
+        run: |
+          mkdir -p tmp/probe tmp/remote-h5 dist
+          echo "Runner: $(uname -a)" | tee tmp/probe/runner.txt
+          echo "KVM: $(test -e /dev/kvm && echo available || echo unavailable)" | tee -a tmp/probe/runner.txt
+          java -version 2>&1 | tee -a tmp/probe/runner.txt
+          sha256sum com.ruirui.cjjlq.apk | tee tmp/probe/apk-sha256.txt
+          ls -lh com.ruirui.cjjlq.apk | tee -a tmp/probe/runner.txt
+
+      - name: Inspect remote game entry from runner
+        shell: bash
+        continue-on-error: true
+        run: |
+          set +e
+          H5_URL="https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html"
+          HOST="cjjlqres.ruiruiyouxi.com"
+          {
+            echo "=== DNS ==="
+            getent ahosts "$HOST"
+            echo "DNS_EXIT=$?"
+            echo "=== TLS/HTTP headers ==="
+            curl -k -sS -L --connect-timeout 10 --max-time 45 -D tmp/probe/h5-headers.txt -o tmp/probe/h5-index.html "$H5_URL"
+            echo "CURL_EXIT=$?"
+            echo "=== response file ==="
+            file tmp/probe/h5-index.html
+            wc -c tmp/probe/h5-index.html
+            head -c 1200 tmp/probe/h5-index.html
+          } > tmp/probe/h5-connectivity.txt 2>&1
+          if [ -s tmp/probe/h5-index.html ] && grep -qiE '<html|<!doctype' tmp/probe/h5-index.html; then
+            wget --recursive --level=7 --page-requisites --convert-links --adjust-extension \
+              --no-parent --domains="$HOST" --timeout=15 --tries=1 --quota=400m \
+              --directory-prefix=tmp/remote-h5 "$H5_URL" \
+              > tmp/probe/wget-h5.log 2>&1 || true
+          fi
+          find tmp/remote-h5 -type f -printf '%p %s bytes\n' 2>/dev/null | sort > tmp/probe/remote-h5-files.txt
+          du -sh tmp/remote-h5 2>/dev/null >> tmp/probe/h5-connectivity.txt || true
+
+      - name: Android emulator install and runtime probe
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          disk-size: 4G
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            set +e
+            mkdir -p tmp/probe/device
+            adb wait-for-device
+            adb shell getprop > tmp/probe/device/getprop.txt
+            adb shell getprop ro.product.cpu.abilist > tmp/probe/device/abis.txt
+            adb shell dumpsys webviewupdate > tmp/probe/device/webview-provider.txt 2>&1
+            adb install -r com.ruirui.cjjlq.apk > tmp/probe/device/install.txt 2>&1
+            INSTALL_RC=$?
+            echo "$INSTALL_RC" > tmp/probe/device/install.exitcode
+            if [ "$INSTALL_RC" -eq 0 ]; then
+              adb shell pm dump com.ruirui.cjjlq > tmp/probe/device/package-dump.txt 2>&1
+              adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/probe/device/launch.txt 2>&1
+              sleep 90
+              adb shell dumpsys activity activities > tmp/probe/device/activities.txt 2>&1
+              adb shell dumpsys window windows > tmp/probe/device/windows.txt 2>&1
+              adb shell dumpsys connectivity > tmp/probe/device/connectivity.txt 2>&1
+              adb shell dumpsys netstats detail > tmp/probe/device/netstats.txt 2>&1
+              adb shell screencap -p /sdcard/game-screen.png
+              adb pull /sdcard/game-screen.png tmp/probe/device/game-screen.png > /dev/null 2>&1
+              adb logcat -d -v threadtime > tmp/probe/device/logcat.txt
+              adb shell ls -laR /sdcard/Android/data/com.ruirui.cjjlq > tmp/probe/device/external-data-list.txt 2>&1
+
+              # Emulator images are often userdebug builds; try root to export WebView/cache data.
+              adb root > tmp/probe/device/adb-root.txt 2>&1
+              adb wait-for-device
+              sleep 3
+              adb pull /data/user/0/com.ruirui.cjjlq tmp/probe/device/private-data-user 2> tmp/probe/device/private-data-user-pull.txt
+              adb pull /data/data/com.ruirui.cjjlq tmp/probe/device/private-data-legacy 2> tmp/probe/device/private-data-legacy-pull.txt
+              adb pull /sdcard/Android/data/com.ruirui.cjjlq tmp/probe/device/external-data 2> tmp/probe/device/external-data-pull.txt
+
+              # Record app process and WebView/browser state after startup.
+              adb shell pidof com.ruirui.cjjlq > tmp/probe/device/app-pid.txt 2>&1
+              adb shell dumpsys activity top > tmp/probe/device/activity-top.txt 2>&1
+            else
+              adb logcat -d -v threadtime > tmp/probe/device/logcat-install-failed.txt
+              adb shell getprop ro.product.cpu.abilist > tmp/probe/device/abis.txt
+            fi
+
+      - name: Summarize probe results
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "=== APK install ==="
+            cat tmp/probe/device/install.txt 2>/dev/null || true
+            echo "=== H5 endpoint ==="
+            cat tmp/probe/h5-connectivity.txt 2>/dev/null || true
+            echo "=== resource counts ==="
+            find tmp/remote-h5 -type f 2>/dev/null | wc -l
+            echo "=== relevant logcat errors ==="
+            grep -iE "chromium|webview|ERR_|SSL|UnknownHost|Cleartext|Exception|FATAL|ruirui|cjjlq" \
+              tmp/probe/device/logcat.txt 2>/dev/null | tail -n 400 || true
+          } > tmp/probe/SUMMARY.txt
+          cat tmp/probe/SUMMARY.txt
+
+      - name: Upload emulator and resource evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-probe-${{ github.run_number }}
+          path: |
+            tmp/probe/
+            tmp/remote-h5/
+          if-no-files-found: warn
+          retention-days: 30
