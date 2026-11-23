@@ -2,7 +2,7 @@
 
 ## 输入文件与可复现指纹
 
-- 文件：`com.ruirui.cjjlq.apk`（用户在对话中上传；未直接写入仓库）
+- 文件：`com.ruirui.cjjlq.apk`（现已上传并提交到仓库根目录）
 - 大小：21,675,613 bytes
 - SHA-256：`ffdaeee37a4d67a69f98c107dce913d4a58fe2ecbcaa8b809fe94b6a542dbf6b`
 - APK ZIP 条目：1,027
@@ -186,3 +186,13 @@ DEX 中还包含 TapTap SDK 的授权和排行榜路径，例如：
 - `work/` 保存分析、协议文档、源码和构建脚本。
 - `tmp/` 保存解包、日志和中间文件，不提交。
 - `dist/` 保存最终离线 APK。
+
+
+## 云端动态分析状态（2026-11-23）
+
+原始 APK 已提交到仓库根目录 `com.ruirui.cjjlq.apk`。GitHub Actions workflow `.github/workflows/android-probe.yml` 使用 Ubuntu 托管 Runner、KVM 和 Android 30 x86_64 模拟器；它会下载远程 H5 入口、安装/启动 APK，并归档 logcat、设备截图、WebView 状态及可访问的应用数据。
+
+当前有效的测试运行记录：
+https://github.com/chenmoulaile/apk/actions/runs/45174334881
+
+先前没有 KVM 配置的两次任务已取消；第 3 次任务已成功完成 KVM 权限步骤，并进入模拟器启动/安装阶段。此记录不等于 APK 已经安装成功；应以后续 Actions 结果和 Artifacts 为准。
