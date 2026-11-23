@@ -85,43 +85,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            set +e
-            mkdir -p tmp/probe/device
-            adb wait-for-device
-            adb shell getprop > tmp/probe/device/getprop.txt
-            adb shell getprop ro.product.cpu.abilist > tmp/probe/device/abis.txt
-            adb shell dumpsys webviewupdate > tmp/probe/device/webview-provider.txt 2>&1
-            adb install -r com.ruirui.cjjlq.apk > tmp/probe/device/install.txt 2>&1
-            INSTALL_RC=$?
-            echo "$INSTALL_RC" > tmp/probe/device/install.exitcode
-            if [ "$INSTALL_RC" -eq 0 ]; then
-              adb shell pm dump com.ruirui.cjjlq > tmp/probe/device/package-dump.txt 2>&1
-              adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/probe/device/launch.txt 2>&1
-              sleep 90
-              adb shell dumpsys activity activities > tmp/probe/device/activities.txt 2>&1
-              adb shell dumpsys window windows > tmp/probe/device/windows.txt 2>&1
-              adb shell dumpsys connectivity > tmp/probe/device/connectivity.txt 2>&1
-              adb shell dumpsys netstats detail > tmp/probe/device/netstats.txt 2>&1
-              adb shell screencap -p /sdcard/game-screen.png
-              adb pull /sdcard/game-screen.png tmp/probe/device/game-screen.png > /dev/null 2>&1
-              adb logcat -d -v threadtime > tmp/probe/device/logcat.txt
-              adb shell ls -laR /sdcard/Android/data/com.ruirui.cjjlq > tmp/probe/device/external-data-list.txt 2>&1
-
-              # Emulator images are often userdebug builds; try root to export WebView/cache data.
-              adb root > tmp/probe/device/adb-root.txt 2>&1
-              adb wait-for-device
-              sleep 3
-              adb pull /data/user/0/com.ruirui.cjjlq tmp/probe/device/private-data-user 2> tmp/probe/device/private-data-user-pull.txt
-              adb pull /data/data/com.ruirui.cjjlq tmp/probe/device/private-data-legacy 2> tmp/probe/device/private-data-legacy-pull.txt
-              adb pull /sdcard/Android/data/com.ruirui.cjjlq tmp/probe/device/external-data 2> tmp/probe/device/external-data-pull.txt
-
-              # Record app process and WebView/browser state after startup.
-              adb shell pidof com.ruirui.cjjlq > tmp/probe/device/app-pid.txt 2>&1
-              adb shell dumpsys activity top > tmp/probe/device/activity-top.txt 2>&1
-            else
-              adb logcat -d -v threadtime > tmp/probe/device/logcat-install-failed.txt
-              adb shell getprop ro.product.cpu.abilist > tmp/probe/device/abis.txt
-            fi
+            bash work/tools/emulator_probe.sh
 
       - name: Summarize probe results
         if: always()
