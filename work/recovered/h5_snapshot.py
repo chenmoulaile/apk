@@ -24,9 +24,12 @@ CORE_FILES = [
     "libSDK.js",
     "libSDK_To_Client.js",
     "zip.txt",
-    "bg3.jpg",
     "atlas/loading.atlas",
     "atlas/loading/bg3.jpg",
+    # Runtime fallback groups requested by loadCommonResAndConfigZip().
+    "atlas/common.atlas",
+    "atlas/common2.atlas",
+    "atlas/commonAni.atlas",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene)/"

@@ -10,11 +10,22 @@ HOOK = r"""
   "use strict";
   var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
   var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
-  var read=function(){try{return JSON.parse(localStorage.getItem(KEY)||"null");}catch(e){return null;}};
+  var read=function(){
+    try{
+      var o=JSON.parse(localStorage.getItem(KEY)||"null");
+      if(o&&o.proto){
+        var raw=atob(o.proto), bytes=new Uint8Array(raw.length);
+        for(var i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+        o.restored=rp.UserDataInfo.decode(bytes);
+      }
+      return o;
+    }catch(e){log("save restore error",e);return null;}
+  };
   var saved=read()||{}, current=null;
   var long=function(v){try{if($util.Long)return $util.Long.fromString(String(v),true);}catch(e){}return Number(v)||0;};
   function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
   function userInfo(){
+    if(saved.restored&&saved.restored.baseInfo){current=saved.restored;return current;}
     var u=new rp.UserDataInfo(), b=new rp.UserBaseInfo(), old=saved.userInfo&&saved.userInfo.baseInfo||{};
     b.userId=long(old.userId||UID);b.name=old.name||NAME;b.sex=old.sex||2;b.level=Math.max(1,Number(old.level)||1);
     b.vipLevel=Number(old.vipLevel)||0;b.zoneId=1;b.sceneLevel=Math.max(1,Number(old.sceneLevel)||1);
@@ -30,16 +41,43 @@ HOOK = r"""
     u.sceneBagInfo=new rp.SceneBagInfo();u.sceneBagInfo.sceneBag=new rp.SceneStorageBag();u.sceneBagInfo.limitInfo=new rp.SceneLimitInfo();
     u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
     u.newSceneGradeInfo=new rp.NewSceneGradeInfo();u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
-    u.advAwardInfo={advAward:{}};u.petCrystalInfo={crystalLevel:1};u.collectCardInfo={};u.guideScheduleInfo={};u.checkInfo={};u.checkInfo2={};
-    u.teamPkEffectInfo={};u.partnerInfo={};u.growthFound=new rp.GrowthFound();
-    ["relicInfo","shopInfo","hallInfo","monopolyInfo","assitPetPackInfo","treasureInfo","petBookInfo","titleInfo","userGuildInfo","taskInfo","petGrowTaskInfo","dailyConsumptionActivityInfo","rideInfo","commInfo","rankGameInfo","activityShopInfo","superHallInfo","chatBlacklistInfo","warCmdInfo","cashFundInfo","summerPetInfo","rechargeTurntableInfo","spriteSkinRedotInfo","srspiriteInfo","yearClbtInfo","headIconsInfo","userMazeInfo","topAreaInfo","sharedCrystalInfo","warAreaInfo","endlessAbyssInfo","newSportsInfo","newEquipCombine","newChampInfo","timeSpaceCrackInfo","newStoreInfo","legendaryChallengeInfo","offerRewardInfo","eliteCallInfo","limitTimeAdvent","newVersionFixInfo","newTaskInfo","userDateAttrInfo","naturePowerInfo","mibaoPackInfo","mibaoLotteryInfo"].forEach(function(k){if(u[k]==null)u[k]={};});
+    u.growthFound=new rp.GrowthFound();
+    var typed={
+      teamPkEffectInfo:"PkAttrInfo",relicInfo:"UserRelicInfo",shopInfo:"ShopInfo",hallInfo:"DBHallInfo",
+      monopolyInfo:"DBMonopolyInfo",assitPetPackInfo:"AssitPetPackInfo",treasureInfo:"DBTreasureInfo",
+      petBookInfo:"PetBookInfo",titleInfo:"TitleInfo",happyBeachInfo:"HappyBeachInfo",
+      userGuildInfo:"UserGuildInfo",checkInfo:"CheckInInfo",taskInfo:"DBAllTaskInfo",
+      petGrowTaskInfo:"PetGrowTaskInfo",guideScheduleInfo:"GuideActiveSchedule",
+      dailyConsumptionActivityInfo:"DailyConsumptionActivityInfo",rideInfo:"DBRideInfo",
+      commInfo:"DBCommunicateInfo",rankGameInfo:"DBRankGameInfo",activityShopInfo:"DBActivityShopInfo",
+      petRoomInfo:"PetRoomInfo",superHallInfo:"DBSuperHallInfo",guildImageSpiriteInfo:"PkAttrInfo",
+      chatBlacklistInfo:"ChatBlacklistInfo",warCmdInfo:"WarCmdUserInfo",artifactBooksInfo:"ArtifactBookMapInfo",
+      cashFundInfo:"CashFundInfo",summerPetInfo:"DBSummerPetInfo",rechargeTurntableInfo:"DbRechargeTurntableInfo",
+      spriteSkinMapInfo:"SpriteSkinInfo",spriteSkinRedotInfo:"SpriteSkinRedotInfo",srspiriteInfo:"DBSrSpiriteInfo",
+      yearClbtInfo:"DBYearClbtInfo",headIconsInfo:"HeadIconsInfo",specialActivityMap:"DBSpecialActivity",
+      userMazeInfo:"MazeUserInfo",advAwardInfo:"LookAdvAwardInfo",partnerInfo:"DBPartnerInfo",
+      topAreaInfo:"DBTopAreaInfo",sharedCrystalInfo:"UserSharedCrystalInfo",warAreaInfo:"DBWarAreaInfo",
+      endlessAbyssInfo:"DBEndlessAbyssInfo",newSportsInfo:"NewSportsInfo",petCrystalInfo:"PetCrystal",
+      newEquipCombine:"NewEquipCombine",newChampInfo:"NewChampInfo",timeSpaceCrackInfo:"TimeAndSpaceCrackInfo",
+      newStoreInfo:"NewStoreInfo",legendaryChallengeInfo:"LegendaryChallengeInfo",offerRewardInfo:"OfferRewardInfo",
+      eliteCallInfo:"EliteCallInfo",limitTimeAdvent:"LimitTimeAdventInfo",weekCircles:"UserWeekCircleInfo",
+      newVersionFixInfo:"NewVersionFixInfo",newTaskInfo:"DBNewTaskInfo",userDateAttrInfo:"UserDataAttrInfo",
+      naturePowerInfo:"NaturePowerInfo",collectCardInfo:"CardCollectInfo",checkInfo2:"CheckInInfo2",
+      checkInfoCycle:"CheckInInfo2",mibaoPackInfo:"MibaoPackInfo",mibaoLotteryInfo:"MibaoLotteryInfo"
+    };
+    Object.keys(typed).forEach(function(k){try{u[k]=new rp[typed[k]]();}catch(e){log("proto field init",k,e);}});
+    u.petCrystalInfo.crystalLevel=1;
+    u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
     return u;
   }
   function save(){
     try{var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);if(!u||!u.baseInfo)return;
       var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet,m=u.baseInfo.moneyInfo;
-      var x={version:1,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp}:null}]}};
-      localStorage.setItem(KEY,JSON.stringify(x));saved=x;
+      var x={version:2,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp}:null}]}};
+      try{var bytes=rp.UserDataInfo.encode(u).finish(),binary="";for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);x.proto=btoa(binary);}
+      catch(protoError){log("protobuf save fallback",protoError);}
+      var persisted={version:x.version,userInfo:x.userInfo,petPackInfo:x.petPackInfo};if(x.proto)persisted.proto=x.proto;
+      localStorage.setItem(KEY,JSON.stringify(persisted));x.restored=u;saved=x;
     }catch(e){log("save error",e);}
   }
   function bots(){
@@ -140,9 +178,14 @@ def patch(root: Path) -> None:
     html=index.read_text(encoding="utf-8",errors="replace")
     html=html.replace('<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>','')
     html=html.replace("https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/libQuickSDKH5_To_Client.js","./libQuickSDKH5_To_Client.js")
+    html=html.replace('<script src="./libQuickSDKH5_To_Client.js"></script>','<script>window.CallbackFromAndroid=window.CallbackFromAndroid||function(){};window.CallbackFromIOS=window.CallbackFromIOS||function(){};</script>\\n<script src="./libQuickSDKH5_To_Client.js"></script>')
     if "offline-menu-button" not in html:
         html=html.replace("</body>",OVERLAY+"\n</body>")
     index.write_text(html,encoding="utf-8")
+    # The loading page CSS points at a root bg3.jpg, while the server stores it under atlas/loading.
+    import shutil
+    if not (root/"bg3.jpg").is_file() and (root/"atlas/loading/bg3.jpg").is_file():
+        shutil.copy2(root/"atlas/loading/bg3.jpg",root/"bg3.jpg")
     text=code.read_text(encoding="utf-8",errors="replace")
     sentinel="new GameShell;"
     if text.count(sentinel)!=1:
