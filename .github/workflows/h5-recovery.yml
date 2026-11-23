@@ -1,0 +1,90 @@
+name: Recover historical H5 resources
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h5-recovery.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    name: Probe live and archived H5 resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Probe live entry and archive indexes
+        shell: bash
+        run: |
+          mkdir -p tmp/h5-recovery/live tmp/h5-recovery/archive
+          H5_URL="https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html"
+          HOST="cjjlqres.ruiruiyouxi.com"
+
+          {
+            echo "=== live DNS ==="
+            getent ahosts "$HOST" || true
+            echo "=== live entry ==="
+            curl -k -sS -L --connect-timeout 10 --max-time 60 \
+              -D tmp/h5-recovery/live/headers.txt \
+              -o tmp/h5-recovery/live/index.html \
+              -w "HTTP=%{http_code}\nFINAL_URL=%{url_effective}\nBYTES=%{size_download}\n" \
+              "$H5_URL" || true
+            file tmp/h5-recovery/live/index.html 2>&1 || true
+            wc -c tmp/h5-recovery/live/index.html 2>&1 || true
+            head -c 2000 tmp/h5-recovery/live/index.html 2>/dev/null || true
+          } > tmp/h5-recovery/live/result.txt 2>&1
+
+          # Query Wayback availability for the exact app entry and the host root.
+          curl -sS -L --connect-timeout 10 --max-time 45 -G \
+            --data-urlencode "url=$H5_URL" \
+            "https://archive.org/wayback/available" \
+            -o tmp/h5-recovery/archive/availability-entry.json || true
+          curl -sS -L --connect-timeout 10 --max-time 45 -G \
+            --data-urlencode "url=https://$HOST/" \
+            "https://archive.org/wayback/available" \
+            -o tmp/h5-recovery/archive/availability-root.json || true
+
+          # Enumerate archived captures for the old game H5 path.
+          curl -sS -L --connect-timeout 10 --max-time 90 -G \
+            --data-urlencode "url=$HOST/taptapReleaseRes/*" \
+            --data-urlencode "output=json" \
+            --data-urlencode "filter=statuscode:200" \
+            --data-urlencode "fl=timestamp,original,statuscode,mimetype,digest,length" \
+            --data-urlencode "collapse=urlkey" \
+            "https://web.archive.org/cdx/search/cdx" \
+            -o tmp/h5-recovery/archive/cdx.json || true
+
+          # If the live entry exists, mirror linked HTML/CSS/JS/image resources.
+          if [ -s tmp/h5-recovery/live/index.html ] && \
+             grep -qiE '<html|<!doctype' tmp/h5-recovery/live/index.html; then
+            wget --recursive --level=8 --page-requisites --convert-links --adjust-extension \
+              --no-parent --domains="$HOST" --timeout=15 --tries=1 --quota=400m \
+              --directory-prefix=tmp/h5-recovery/live/mirror "$H5_URL" \
+              > tmp/h5-recovery/live/wget.log 2>&1 || true
+          fi
+
+          {
+            echo "=== availability ==="
+            cat tmp/h5-recovery/archive/availability-entry.json 2>/dev/null || true
+            echo
+            echo "=== cdx first records ==="
+            head -n 60 tmp/h5-recovery/archive/cdx.json 2>/dev/null || true
+            echo
+            echo "=== downloaded files ==="
+            find tmp/h5-recovery -type f -printf '%p %s bytes\n' | sort
+          } > tmp/h5-recovery/SUMMARY.txt
+          cat tmp/h5-recovery/SUMMARY.txt
+
+      - name: Upload H5 recovery evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: h5-recovery-${{ github.run_number }}
+          path: tmp/h5-recovery/
+          if-no-files-found: warn
+          retention-days: 30
