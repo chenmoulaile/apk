@@ -13,7 +13,21 @@ echo "$INSTALL_RC" > tmp/probe/device/install.exitcode
 if [ "$INSTALL_RC" -eq 0 ]; then
   adb shell pm dump com.ruirui.cjjlq > tmp/probe/device/package-dump.txt 2>&1
   adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/probe/device/launch.txt 2>&1
-  sleep 90
+  sleep 25
+  adb shell screencap -p /sdcard/game-before-consent.png
+  adb pull /sdcard/game-before-consent.png tmp/probe/device/game-before-consent.png > /dev/null 2>&1
+  adb shell uiautomator dump /sdcard/ui-before-consent.xml > tmp/probe/device/ui-dump-before.txt 2>&1
+  adb pull /sdcard/ui-before-consent.xml tmp/probe/device/ui-before-consent.xml > /dev/null 2>&1
+
+  # Accept the game's first-run privacy prompt on the disposable emulator only.
+  # Emulator screenshot is 1080x1920; the orange Agree button is centered near (780,1280).
+  adb shell input tap 780 1280
+  sleep 75
+  adb shell screencap -p /sdcard/game-after-consent.png
+  adb pull /sdcard/game-after-consent.png tmp/probe/device/game-after-consent.png > /dev/null 2>&1
+  adb shell uiautomator dump /sdcard/ui-after-consent.xml > tmp/probe/device/ui-dump-after.txt 2>&1
+  adb pull /sdcard/ui-after-consent.xml tmp/probe/device/ui-after-consent.xml > /dev/null 2>&1
+
   adb shell dumpsys activity activities > tmp/probe/device/activities.txt 2>&1
   adb shell dumpsys window windows > tmp/probe/device/windows.txt 2>&1
   adb shell dumpsys connectivity > tmp/probe/device/connectivity.txt 2>&1
