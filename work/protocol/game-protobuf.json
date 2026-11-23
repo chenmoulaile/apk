@@ -1,0 +1,499 @@
+{
+  "source": "work/recovered/h5_snapshot.py downloaded H5 code.js and zip.txt from taptapReleaseRes; verified statically in Laya client",
+  "channel": {
+    "name": "TapTap",
+    "class": "Channel_NewWX",
+    "environment": "rpenv=wx selects release",
+    "version": "1.0.1",
+    "login_way": 102,
+    "mix_way": 4,
+    "platform": "unknow",
+    "cgi_domain": "cjjlqwxweb.ruiruiyouxi.com",
+    "resource_base": "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/"
+  },
+  "http": {
+    "base": "https://cjjlqwxweb.ruiruiyouxi.com/rp_web/",
+    "common_query": {
+      "login_way": 102,
+      "envi": 2,
+      "version": "1.0.1",
+      "platform": "unknow",
+      "mix_way": 4
+    },
+    "svr_list": {
+      "method": "GET",
+      "path": "svr_list",
+      "request_extra": {
+        "showOne": 1
+      },
+      "response_fields": [
+        "ret",
+        "svr_list",
+        "in_white_list",
+        "login_svr_id_list",
+        "sid",
+        "token",
+        "submit_flag",
+        "cvv",
+        "msg"
+      ],
+      "live_probe": {
+        "http_status": 200,
+        "body": {
+          "msg": "system error",
+          "ret": -1
+        }
+      }
+    },
+    "regist": {
+      "method": "GET",
+      "path": "regist",
+      "side_effect": "May create a player account; not called during this task",
+      "request_fields": [
+        "choicePetId",
+        "zone_id",
+        "oaid",
+        "name",
+        "sex",
+        "inviter_user_id",
+        "inviter_zone_id",
+        "invite_type",
+        "share_id",
+        "share_img_id"
+      ],
+      "success_fields": [
+        "ret",
+        "sid",
+        "token",
+        "user_id"
+      ]
+    },
+    "dir": {
+      "method": "GET",
+      "path": "dir",
+      "request_fields": [
+        "zone_id",
+        "user_id",
+        "showData"
+      ],
+      "success_fields": [
+        "ret",
+        "ip",
+        "port",
+        "city",
+        "share_flag"
+      ]
+    },
+    "ip_level": {
+      "method": "GET",
+      "path": "ip_level",
+      "success_fields": [
+        "ret",
+        "level"
+      ]
+    }
+  },
+  "transport": {
+    "websocket_header_bytes": 32,
+    "byte_order": "big-endian",
+    "fields": [
+      {
+        "offset": 0,
+        "bytes": 8,
+        "name": "user_id",
+        "type": "uint64"
+      },
+      {
+        "offset": 8,
+        "bytes": 4,
+        "name": "cmd",
+        "type": "int32"
+      },
+      {
+        "offset": 12,
+        "bytes": 4,
+        "name": "body_len",
+        "type": "int32"
+      },
+      {
+        "offset": 16,
+        "bytes": 8,
+        "name": "start_mseconds",
+        "type": "uint64"
+      },
+      {
+        "offset": 24,
+        "bytes": 4,
+        "name": "magic_num",
+        "type": "int32",
+        "default": 38183
+      },
+      {
+        "offset": 28,
+        "bytes": 4,
+        "name": "trans_id",
+        "type": "int32"
+      }
+    ],
+    "body": "Protocol Buffers"
+  },
+  "protobuf": {
+    "LoginReq": {
+      "cmd": 16777219,
+      "fields": [
+        [
+          "token",
+          1,
+          "string"
+        ],
+        [
+          "sid",
+          2,
+          "string"
+        ],
+        [
+          "loginWay",
+          3,
+          "uint32"
+        ],
+        [
+          "platform",
+          4,
+          "string"
+        ],
+        [
+          "cityLevel",
+          5,
+          "int32"
+        ],
+        [
+          "shareInfo",
+          6,
+          "LoginShareInfo"
+        ],
+        [
+          "shareId",
+          7,
+          "int32"
+        ],
+        [
+          "shareImgId",
+          8,
+          "int32"
+        ],
+        [
+          "machineBrand",
+          9,
+          "string"
+        ],
+        [
+          "machineModel",
+          10,
+          "string"
+        ],
+        [
+          "machineVersion",
+          11,
+          "string"
+        ],
+        [
+          "cvv",
+          12,
+          "string"
+        ]
+      ]
+    },
+    "LoginRsp": {
+      "cmd": 16777220,
+      "fields": [
+        [
+          "ret",
+          1,
+          "uint32"
+        ],
+        [
+          "userInfo",
+          2,
+          "UserDataInfo"
+        ],
+        [
+          "serverMtime",
+          3,
+          "uint64"
+        ],
+        [
+          "loginNotice",
+          4,
+          "LoginNotice"
+        ],
+        [
+          "userLeadValue",
+          5,
+          "repeated uint32"
+        ],
+        [
+          "offineInfo",
+          6,
+          "OffineLineInfo"
+        ],
+        [
+          "openSvrDays",
+          7,
+          "int32"
+        ],
+        [
+          "openSvrTime",
+          8,
+          "uint32"
+        ],
+        [
+          "mergeSvrDays",
+          9,
+          "int32"
+        ],
+        [
+          "mergeSvrTime",
+          10,
+          "uint32"
+        ],
+        [
+          "rawOpenSvrDays",
+          11,
+          "uint32"
+        ],
+        [
+          "rawOpenSvrTime",
+          12,
+          "uint32"
+        ],
+        [
+          "mergeSvrTimes",
+          13,
+          "uint32"
+        ],
+        [
+          "openComeBackActivity",
+          14,
+          "uint32"
+        ],
+        [
+          "goNewServerOld",
+          15,
+          "bool"
+        ],
+        [
+          "goNewServerNew",
+          16,
+          "bool"
+        ],
+        [
+          "newVersionFirstLoginTime",
+          17,
+          "uint32"
+        ]
+      ]
+    },
+    "EnterSceneReq": {
+      "cmd": 16777221,
+      "fields": [
+        [
+          "sceneId",
+          1,
+          "uint32"
+        ]
+      ]
+    },
+    "EnterSceneRsp": {
+      "cmd": 16777222,
+      "fields": [
+        [
+          "ret",
+          1,
+          "uint32"
+        ],
+        [
+          "sceneId",
+          2,
+          "uint32"
+        ],
+        [
+          "userInfos",
+          3,
+          "repeated UserSnapInfo"
+        ],
+        [
+          "sceneBag",
+          4,
+          "SceneBag"
+        ],
+        [
+          "avengeUserId",
+          5,
+          "uint64"
+        ],
+        [
+          "sceneName",
+          6,
+          "string"
+        ]
+      ]
+    }
+  },
+  "UserDataInfo_fields": [
+    "baseInfo",
+    "extInfo",
+    "itemPackInfo",
+    "petPackInfo",
+    "petStorageInfo",
+    "sceneBagInfo",
+    "redotInfo",
+    "activityInfo",
+    "teamPkEffectInfo",
+    "relicInfo",
+    "shopInfo",
+    "hallInfo",
+    "monopolyInfo",
+    "assitPetPackInfo",
+    "treasureInfo",
+    "petBookInfo",
+    "titleInfo",
+    "happyBeachInfo",
+    "userGuildInfo",
+    "checkInfo",
+    "taskInfo",
+    "growthFound",
+    "petGrowTaskInfo",
+    "guideScheduleInfo",
+    "dailyConsumptionActivityInfo",
+    "rideInfo",
+    "commInfo",
+    "rankGameInfo",
+    "activityShopInfo",
+    "petRoomInfo",
+    "superHallInfo",
+    "guildMapInfo",
+    "guildImageSpiriteInfo",
+    "guildmapChallengetimes",
+    "chatBlacklistInfo",
+    "warCmdInfo",
+    "artifactBooksInfo",
+    "cashFundInfo",
+    "summerPetInfo",
+    "rechargeTurntableInfo",
+    "spriteSkinMapInfo",
+    "hasAddSkinModuleRedot",
+    "spriteSkinRedotInfo",
+    "srspiriteInfo",
+    "yearClbtInfo",
+    "headIconsInfo",
+    "specialActivityMap",
+    "userMazeInfo",
+    "advAwardInfo",
+    "partnerInfo",
+    "topAreaInfo",
+    "sharedCrystalInfo",
+    "warAreaInfo",
+    "endlessAbyssInfo",
+    "newSportsInfo",
+    "petCrystalInfo",
+    "newEquipCombine",
+    "newChampInfo",
+    "newSceneGradeInfo",
+    "timeSpaceCrackInfo",
+    "newStoreInfo",
+    "legendaryChallengeInfo",
+    "offerRewardInfo",
+    "eliteCallInfo",
+    "limitTimeAdvent",
+    "weekCircles",
+    "newVersionFixInfo",
+    "newTaskInfo",
+    "userDateAttrInfo",
+    "naturePowerInfo",
+    "collectCardInfo",
+    "checkInfo2",
+    "checkInfoCycle",
+    "mibaoPackInfo",
+    "mibaoLotteryInfo"
+  ],
+  "UserBaseInfo_fields": [
+    "userId",
+    "name",
+    "sex",
+    "bornTime",
+    "oldTotalExp",
+    "oldNextLevelExp",
+    "level",
+    "vipLevel",
+    "zoneId",
+    "rankPlace",
+    "titleId",
+    "sceneLevel",
+    "sceneLevelTimes",
+    "avatarBits",
+    "avatarId",
+    "moneyInfo",
+    "wingId",
+    "pikachuId",
+    "totalFightScore",
+    "titleSubId",
+    "noticeId",
+    "vipExp",
+    "historyRecharge",
+    "loginWay",
+    "payIconValue",
+    "monthCardTime",
+    "firstPet",
+    "sid",
+    "hasFriendWish",
+    "liveCardTime",
+    "rideId",
+    "communicateSkillId",
+    "rankGradeInfo",
+    "platform",
+    "magicmapId",
+    "wan8VipSpecialAwardTime",
+    "lastPayTime",
+    "wan8Pf",
+    "operativeActivityAward",
+    "mixWay",
+    "pikaqiuFlag",
+    "trainMedalId",
+    "trainMedalLevel",
+    "trainMedalStar",
+    "iosCustomerFlag",
+    "userinfoDbreqTime",
+    "userinfoDbrspTime",
+    "svipExp",
+    "svipLevel",
+    "svipOverTime",
+    "svipFirstMonthFlag",
+    "headIcon",
+    "pointItemMap",
+    "realSex",
+    "totalFightScore_2",
+    "totalFightScore_3",
+    "dataVersion",
+    "newMonthCardTime",
+    "newLiveCardTime",
+    "totalExp",
+    "nextLevelExp",
+    "newVersionPlayer",
+    "newGuildAwardFlag",
+    "newPointItemMap",
+    "isPointTransform",
+    "weekCardTime",
+    "bubbleId",
+    "unlockBubbleBits",
+    "isAdvanceAccount",
+    "newUnlockBubbleBits",
+    "vipPackageId"
+  ],
+  "known_not_observed": [
+    "valid LoginRsp bytes or JSON equivalent",
+    "valid svr_list success payload",
+    "dir ip/port",
+    "LoginRsp userInfo values",
+    "WebSocket transaction IDs at runtime"
+  ]
+}
