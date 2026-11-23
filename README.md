@@ -10,7 +10,7 @@
 
 ## 当前结论
 
-上传的 `com.ruirui.cjjlq.apk` 是 QuickGame JS 壳，不是包含完整游戏客户端资源的独立 APK。启动入口指向远程 H5 页面：
+上传的 `com.ruirui.cjjlq.apk`（现已提交在仓库根目录） 是 QuickGame JS 壳，不是包含完整游戏客户端资源的独立 APK。启动入口指向远程 H5 页面：
 
 `https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html`
 
@@ -33,3 +33,13 @@ python3 work/tools/make_login_notify.py --uid offline-local-001 --username "离�
 第三个工具只生成已确认的 QuickSDK `loginNotify` 桥接输入（JSON 与 Base64），便于离线桥接测试；它不等于游戏网关登录响应，也没有被注入原 APK。
 
 更完整的接口归属和交叉引用见 [work/analysis/sdk-endpoints.md](work/analysis/sdk-endpoints.md)。当前构建环境没有 APK 反编译/打包工具链，且没有 H5 游戏资源，因此 `dist/` 仅预留输出位置。
+
+
+## 云端动态探测
+
+已增加 [Android emulator probe workflow](.github/workflows/android-probe.yml)。它会在 GitHub Actions Linux Runner 中创建 Android 30 x86_64 模拟器，尝试安装并启动仓库根目录的原始 APK，探测远程 H5 入口，并归档 Logcat、设备状态、可访问的应用数据和下载到的 H5 资源。
+
+运行记录：
+https://github.com/chenmoulaile/apk/actions/workflows/android-probe.yml
+
+云端探测产物会在对应 workflow run 的 Artifacts 中保留 30 天。首次动态测试尚在执行，结果确认前不会宣称 APK 已能离线运行。
