@@ -1,0 +1,89 @@
+name: Archive live game client
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/h5-snapshot.yml"
+      - "work/recovered/h5_snapshot.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: h5-snapshot-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    name: Download H5 code, config and static resources
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe game API endpoints (read-only)
+        shell: bash
+        run: |
+          mkdir -p tmp/h5-snapshot/api
+          DOMAIN="https://cjjlqwxweb.ruiruiyouxi.com"
+          QUERY="showOne=1&login_way=102&envi=2&version=1.0.1&platform=unknow&mix_way=4"
+          {
+            echo "=== DNS ==="
+            getent ahosts cjjlqwxweb.ruiruiyouxi.com || true
+            echo "=== server list (read-only) ==="
+            curl -k -sS -L --connect-timeout 10 --max-time 45 \
+              -D tmp/h5-snapshot/api/svr-list.headers \
+              -o tmp/h5-snapshot/api/svr-list.json \
+              -w "HTTP=%{http_code} BYTES=%{size_download} FINAL=%{url_effective}\n" \
+              "$DOMAIN/rp_web/svr_list?$QUERY" || true
+            echo "=== response ==="
+            head -c 12000 tmp/h5-snapshot/api/svr-list.json 2>/dev/null || true
+            echo
+            echo "=== debug domain DNS ==="
+            getent ahosts cjjlqwxdev.ruiruiyouxi.com || true
+          } > tmp/h5-snapshot/api/summary.txt 2>&1
+
+      - name: Download H5 game client and resources
+        shell: bash
+        run: |
+          python3 work/recovered/h5_snapshot.py \
+            --output tmp/h5-snapshot/client \
+            --max-total-mib 700 \
+            --workers 16 | tee tmp/h5-snapshot/download-summary.json
+          cp tmp/h5-snapshot/snapshot-manifest.json work/recovered/snapshot-manifest.json
+          cat > work/recovered/README.md <<'EOF'
+          # Recovered H5 game client
+
+          Original client downloaded from the H5 resource URL embedded in the user's APK:
+          https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/
+
+          The downloaded files are kept as GitHub Actions artifacts to avoid bloating the
+          Git repository with a large binary resource tree. snapshot-manifest.json
+          records file paths, sizes and SHA-256 hashes. The original APK remains unchanged.
+
+          This is the recovered original client, not yet an offline-patched build.
+          EOF
+
+      - name: Commit recovery manifest
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add work/recovered/README.md work/recovered/snapshot-manifest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "archive: record recovered H5 client resource manifest"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload recovered H5 client bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovered-h5-client-${{ github.run_number }}
+          path: |
+            tmp/h5-snapshot/
+          if-no-files-found: warn
+          retention-days: 30
