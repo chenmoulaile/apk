@@ -29,7 +29,7 @@ jobs:
         run: |
           mkdir -p tmp/h5-snapshot/api
           DOMAIN="https://cjjlqwxweb.ruiruiyouxi.com"
-          QUERY="showOne=1&login_way=102&envi=2&version=1.0.1&platform=unknow&mix_way=4"
+          QUERY="showOne=1&login_way=102&envi=2&version=1.0.1&platform=unknow&mix_way=5"
           {
             echo "=== DNS ==="
             getent ahosts cjjlqwxweb.ruiruiyouxi.com || true
@@ -76,6 +76,25 @@ jobs:
           if ! git diff --cached --quiet; then
             git commit -m "archive: record recovered H5 client resource manifest"
             git push origin HEAD:main
+          fi
+
+      - name: Publish recovered H5 source bundle
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p tmp/h5-snapshot/release
+          cd tmp/h5-snapshot
+          zip -qr recovered-h5-client.zip client snapshot-manifest.json api
+          cd ../..
+          TAG="h5-source-20261123"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" tmp/h5-snapshot/recovered-h5-client.zip \
+              --title "Recovered Super Spirit Ball H5 client" \
+              --notes "Downloaded original H5 client and static resources from the URL embedded in the user-provided APK. This is an archival source bundle, not an offline-patched game."
+          else
+            gh release upload "$TAG" tmp/h5-snapshot/recovered-h5-client.zip --clobber
           fi
 
       - name: Upload recovered H5 client bundle
