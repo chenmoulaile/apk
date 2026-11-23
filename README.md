@@ -1,0 +1,23 @@
+# 超级精灵球离线化研究
+
+> 状态：静态分析完成第一轮；尚未形成可玩的离线 APK。当前仓库在任务开始时为空，原始 APK 由用户在对话中单独上传。
+
+## 目录约定
+
+- `work/`：分析记录、协议说明、工具脚本和后续源码修改。
+- `dist/`：最终重打包 APK 的输出目录。
+- `tmp/`：解包、反编译、抓包等临时文件，不提交临时内容。
+
+## 当前结论
+
+上传的 `com.ruirui.cjjlq.apk` 是 QuickGame JS 壳，不是包含完整游戏客户端资源的独立 APK。启动入口指向远程 H5 页面：
+
+`https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html`
+
+APK 本身未包含 HTML 页面或游戏 JS bundle。APK 内的 `assets/libQuickSDKH5_To_Client.js` 只暴露 QuickSDK 桥接契约。首轮确认的登录通知字段为 `status`、`uid`、`username`、`token`、`oaid`；这不是游戏网关的完整登录响应。
+
+因此，只有这份 APK 还不足以构造能运行原游戏的离线版本。还需要原 H5 资源/本地缓存，或游戏运行时的请求与响应记录。协议说明见 [work/analysis/static-analysis.md](work/analysis/static-analysis.md)，桥接字段见 [work/protocol/quicksdk-bridge.json](work/protocol/quicksdk-bridge.json)。
+
+## 约定
+
+本项目的模拟玩家只用于离线本地的 AI/影子数据展示，并明确标注为模拟数据；不会伪装真实在线用户，也不会向外部排行榜注入虚假记录。离线付费能力应通过本地解锁/开发菜单实现，不连接真实支付渠道。
