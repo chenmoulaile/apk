@@ -21,3 +21,15 @@ APK 本身未包含 HTML 页面或游戏 JS bundle。APK 内的 `assets/libQuick
 ## 约定
 
 本项目的模拟玩家只用于离线本地的 AI/影子数据展示，并明确标注为模拟数据；不会伪装真实在线用户，也不会向外部排行榜注入虚假记录。离线付费能力应通过本地解锁/开发菜单实现，不连接真实支付渠道。
+
+## 可重复分析工具
+
+```bash
+python3 work/tools/inspect_apk.py /path/to/com.ruirui.cjjlq.apk
+python3 work/tools/dex_xref.py /path/to/com.ruirui.cjjlq.apk
+python3 work/tools/make_login_notify.py --uid offline-local-001 --username "离线玩家"
+```
+
+第三个工具只生成已确认的 QuickSDK `loginNotify` 桥接输入（JSON 与 Base64），便于离线桥接测试；它不等于游戏网关登录响应，也没有被注入原 APK。
+
+更完整的接口归属和交叉引用见 [work/analysis/sdk-endpoints.md](work/analysis/sdk-endpoints.md)。当前构建环境没有 APK 反编译/打包工具链，且没有 H5 游戏资源，因此 `dist/` 仅预留输出位置。
