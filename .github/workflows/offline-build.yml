@@ -1,0 +1,151 @@
+name: Build and test offline Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/offline-build.yml"
+      - "work/tools/patch_offline_h5.py"
+      - "work/tools/h5_snapshot.py"
+      - "work/tools/test_offline_apk.sh"
+      - "com.ruirui.cjjlq.apk"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install APKTool
+        shell: bash
+        run: |
+          sudo mkdir -p /usr/local/lib/apktool
+          curl -fL --retry 3 -o /usr/local/lib/apktool/apktool.jar \
+            https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
+          printf '#!/bin/sh\nexec java -jar /usr/local/lib/apktool/apktool.jar "$@"\n' | sudo tee /usr/local/bin/apktool >/dev/null
+          sudo chmod +x /usr/local/bin/apktool
+          apktool --version
+
+      - name: Download original game H5 client and resources
+        shell: bash
+        run: |
+          mkdir -p tmp/offline-build dist
+          python3 work/recovered/h5_snapshot.py \
+            --output tmp/offline-build/game \
+            --max-total-mib 700 \
+            --workers 16 | tee tmp/offline-build/snapshot-summary.json
+          test -s tmp/offline-build/game/index.html
+          test -s tmp/offline-build/game/code.js
+          test -s tmp/offline-build/game/zip.txt
+          test -s tmp/offline-build/game/libQuickSDKH5_To_Client.js
+
+      - name: Apply local login, data, WebSocket and save patch
+        run: |
+          python3 work/tools/patch_offline_h5.py tmp/offline-build/game
+          node --check tmp/offline-build/game/code.js
+
+      - name: Decode APK and point WebView to local H5
+        shell: bash
+        run: |
+          apktool d -f com.ruirui.cjjlq.apk -o tmp/offline-build/decoded
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path("tmp/offline-build/decoded")
+          old = "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html"
+          new = "file:///android_asset/game/index.html"
+          changed = []
+          for path in root.rglob("*.smali"):
+              text = path.read_text(encoding="utf-8", errors="replace")
+              if old in text:
+                  path.write_text(text.replace(old, new), encoding="utf-8")
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit("H5 entry URL was not found in decoded smali")
+          print("Patched H5 entry in:", *changed, sep="\n  ")
+          assets = root / "assets" / "game"
+          assets.mkdir(parents=True, exist_ok=True)
+          import shutil
+          shutil.copytree("tmp/offline-build/game", assets, dirs_exist_ok=True)
+          required = ["index.html", "code.js", "zip.txt", "libQuickSDKH5_To_Client.js"]
+          missing = [x for x in required if not (assets / x).is_file()]
+          if missing:
+              raise SystemExit("missing packaged H5 files: " + ", ".join(missing))
+          print("Packaged local H5 bytes:", sum(p.stat().st_size for p in assets.rglob("*") if p.is_file()))
+          PY
+
+      - name: Rebuild APK
+        run: |
+          apktool b tmp/offline-build/decoded -o tmp/offline-build/unsigned.apk
+          test -s tmp/offline-build/unsigned.apk
+
+      - name: Align and sign APK
+        shell: bash
+        run: |
+          sdkmanager --install "build-tools;35.0.0" "platforms;android-35"
+          BT="$ANDROID_HOME/build-tools/35.0.0"
+          keytool -genkeypair -noprompt -keystore tmp/offline-build/offline.keystore \
+            -storepass offline-local-build -keypass offline-local-build \
+            -alias offline -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Super Spirit Ball Offline, OU=Preservation, O=Local, C=CN"
+          "$BT/zipalign" -p -f 4 tmp/offline-build/unsigned.apk tmp/offline-build/aligned.apk
+          "$BT/apksigner" sign --ks tmp/offline-build/offline.keystore \
+            --ks-key-alias offline --ks-pass pass:offline-local-build \
+            --key-pass pass:offline-local-build \
+            --out dist/super-spirit-ball-offline.apk tmp/offline-build/aligned.apk
+          "$BT/apksigner" verify --verbose dist/super-spirit-ball-offline.apk
+          sha256sum dist/super-spirit-ball-offline.apk | tee dist/SHA256SUMS.txt
+          ls -lh dist/super-spirit-ball-offline.apk
+
+      - name: Install and launch with network disabled
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          cores: 2
+          ram-size: 2048M
+          heap-size: 512M
+          disk-size: 4G
+          emulator-boot-timeout: 600
+          disable-linux-hw-accel: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: |
+            bash work/tools/test_offline_apk.sh
+
+      - name: Upload offline APK and runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: offline-apk-test-${{ github.run_number }}
+          path: |
+            dist/
+            tmp/offline-test/
+          if-no-files-found: warn
+          retention-days: 30
