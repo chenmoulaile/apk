@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Patch the recovered Laya H5 client for a local-only first boot."""
+from __future__ import annotations
+import argparse
+from pathlib import Path
+
+HOOK = r"""
+;/* SUPER_SPIRIT_BALL_OFFLINE_PATCH_V1 */
+(function(){
+  "use strict";
+  var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
+  var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
+  var read=function(){try{return JSON.parse(localStorage.getItem(KEY)||"null");}catch(e){return null;}};
+  var saved=read()||{}, current=null;
+  var long=function(v){try{if($util.Long)return $util.Long.fromString(String(v),true);}catch(e){}return Number(v)||0;};
+  function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
+  function userInfo(){
+    var u=new rp.UserDataInfo(), b=new rp.UserBaseInfo(), old=saved.userInfo&&saved.userInfo.baseInfo||{};
+    b.userId=long(old.userId||UID);b.name=old.name||NAME;b.sex=old.sex||2;b.level=Math.max(1,Number(old.level)||1);
+    b.vipLevel=Number(old.vipLevel)||0;b.zoneId=1;b.sceneLevel=Math.max(1,Number(old.sceneLevel)||1);
+    b.sceneLevelTimes=Number(old.sceneLevelTimes)||0;b.firstPet=3101;b.sid="offline-local";b.loginWay=102;b.platform="offline";b.mixWay=4;b.avatarId=Number(old.avatarId)||1;
+    b.moneyInfo=new rp.MoneyInfo();var m=old.moneyInfo||{};
+    b.moneyInfo.gold=long(m.gold==null?1000000:m.gold);b.moneyInfo.diamond=Number(m.diamond==null?10000:m.diamond);
+    b.moneyInfo.cash=Number(m.cash==null?10000:m.cash);b.moneyInfo.petCoin=long(m.petCoin||100000);b.moneyInfo.equipCoin=long(m.equipCoin||100000);
+    b.moneyInfo.warScoreCoin=long(m.warScoreCoin||0);b.moneyInfo.honorCoin=long(m.honorCoin||0);b.moneyInfo.rankGameScore=Number(m.rankGameScore)||0;u.baseInfo=b;
+    u.extInfo=new rp.UserExtInfo();u.itemPackInfo=new rp.ItemPackInfo();u.petPackInfo=new rp.PetPackInfo();u.petStorageInfo=new rp.PetStorageInfo();
+    var prior=saved.petPackInfo&&saved.petPackInfo.packArray&&saved.petPackInfo.packArray[0]&&saved.petPackInfo.packArray[0].pet;
+    var p=petFrom(prior),packs=[];for(var i=0;i<6;i++){var n=new rp.PackNode();n.index=i;n.state=i===0?1:0;n.equip=[];if(i===0){n.pet=p;n.combatPos=1;}packs.push(n);}
+    u.petPackInfo.packArray=packs;u.petStorageInfo.petArray=[p];u.petStorageInfo.sidGenerator=100002;
+    u.sceneBagInfo=new rp.SceneBagInfo();u.sceneBagInfo.sceneBag=new rp.SceneStorageBag();u.sceneBagInfo.limitInfo=new rp.SceneLimitInfo();
+    u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
+    u.newSceneGradeInfo=new rp.NewSceneGradeInfo();u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
+    u.advAwardInfo={advAward:{}};u.petCrystalInfo={crystalLevel:1};u.collectCardInfo={};u.guideScheduleInfo={};u.checkInfo={};u.checkInfo2={};
+    u.teamPkEffectInfo={};u.partnerInfo={};u.growthFound=new rp.GrowthFound();
+    ["relicInfo","shopInfo","hallInfo","monopolyInfo","assitPetPackInfo","treasureInfo","petBookInfo","titleInfo","userGuildInfo","taskInfo","petGrowTaskInfo","dailyConsumptionActivityInfo","rideInfo","commInfo","rankGameInfo","activityShopInfo","superHallInfo","chatBlacklistInfo","warCmdInfo","cashFundInfo","summerPetInfo","rechargeTurntableInfo","spriteSkinRedotInfo","srspiriteInfo","yearClbtInfo","headIconsInfo","userMazeInfo","topAreaInfo","sharedCrystalInfo","warAreaInfo","endlessAbyssInfo","newSportsInfo","newEquipCombine","newChampInfo","timeSpaceCrackInfo","newStoreInfo","legendaryChallengeInfo","offerRewardInfo","eliteCallInfo","limitTimeAdvent","newVersionFixInfo","newTaskInfo","userDateAttrInfo","naturePowerInfo","mibaoPackInfo","mibaoLotteryInfo"].forEach(function(k){if(u[k]==null)u[k]={};});
+    return u;
+  }
+  function save(){
+    try{var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);if(!u||!u.baseInfo)return;
+      var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet,m=u.baseInfo.moneyInfo;
+      var x={version:1,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp}:null}]}};
+      localStorage.setItem(KEY,JSON.stringify(x));saved=x;
+    }catch(e){log("save error",e);}
+  }
+  function bots(){
+    return ["【模拟】小星","【模拟】阿风","【模拟】皮皮","【模拟】训练员07","【模拟】小羽","【模拟】阿光"].map(function(n,i){
+      var b=new rp.UserSnapInfo();b.userId=long(910001+i);b.name=n;b.sex=i%2?1:2;b.level=1+i*3;b.vipLevel=0;b.zoneId=1;b.avatarId=1+i%5;
+      b.leader=new rp.GlobalPetSnap();b.leader.id=3101+i%4;b.leader.level=b.level;b.petPackInfo=new rp.PetPackInfo();return b;
+    });
+  }
+  if(typeof QuickSdkMgr!=="undefined"){
+    QuickSdkMgr.prototype.init=function(){log("SDK bypass");return Promise.resolve();};
+    QuickSdkMgr.prototype.showPrivace=function(cb){var x={status:true,message:"offline"};cb&&cb(x);return Promise.resolve(x);};
+    QuickSdkMgr.prototype.login=function(cb){var d={uid:"offline-730001",username:NAME,token:"offline-local-token",isLogin:true,channelId:"offline",oaid:""};this._isLogin=true;this._userInfo=d;var x={status:true,channelId:"offline",data:d};cb&&cb(x);log("local identity ready");};
+    QuickSdkMgr.prototype.getOaid=function(){return "";};QuickSdkMgr.prototype.role=function(){save();};
+    QuickSdkMgr.prototype.pay=function(o,cb){var x={status:false,message:"离线版本不连接真实支付，请使用本地离线菜单"};cb&&cb(x);return x;};
+    QuickSdkMgr.prototype.adVideo=function(t,cb){var x={status:false,message:"离线版本不提供广告"};cb&&cb(x);return x;};
+    QuickSdkMgr.prototype.adManExtraPay2Interval=function(){};QuickSdkMgr.prototype.tickHeartBeat=function(){};QuickSdkMgr.prototype.exitGame=function(){};
+  }
+  if(typeof GameMainBase!=="undefined"){
+    var init=GameMainBase.prototype.init;
+    GameMainBase.prototype.init=function(){init.call(this);Laya.URL.basePath="file:///android_asset/game/";log("local resource base",Laya.URL.basePath);};
+    GameMainBase.prototype.initSdk=function(){return Promise.resolve();};
+    GameMainBase.prototype.showNotice=function(){return Promise.resolve();};
+  }
+  if(typeof NM!=="undefined"){
+    NM.prototype.httpCmd=function(c){
+      log("local HTTP",c);
+      if(c==="svr_list")return Promise.resolve({ret:0,svr_list:[{zone_id:1,user_id:UID,name:"本地离线服",status:1,repair:0}],in_white_list:1,login_svr_id_list:[1],sid:"offline-local",token:"offline-local-token",submit_flag:0,cvv:""});
+      if(c==="dir")return Promise.resolve({ret:0,ip:"127.0.0.1",port:19999,city:99,share_flag:0});
+      if(c==="ip_level")return Promise.resolve({ret:0,level:0});
+      if(c==="notice")return Promise.resolve({ret:0,dir_notice_list:[]});
+      return Promise.resolve({ret:1,msg:"离线模式：服务端请求已禁用",offline:true});
+    };
+    NM.prototype.init=function(host,port,onConnect){this._offlineConnection=true;if(this.socketClient){this.socketClient.isConnected=true;this.socketClient.destroy=function(){};}
+      log("local socket stub",host,port);setTimeout(function(){try{onConnect&&onConnect.run&&onConnect.run();}catch(e){log("connect cb",e);}},0);};
+    NM.prototype.request=function(req,Resp,cb,ctx){
+      var r=new Resp();r.ret=1;
+      if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();current=r.userInfo;r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
+        r.openSvrDays=20;r.openSvrTime=Math.floor(Date.now()/1000)-20*86400;r.mergeSvrDays=0;r.mergeSvrTime=0;r.loginNotice={title:"",nickName:"",content:"",name:"",date:""};log("local LoginRsp");}
+      else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
+      if(cb)setTimeout(function(){try{cb.call(ctx||null,r);}catch(e){log("response callback",e);}},0);
+      return Promise.resolve(r);
+    };
+  }
+  if(typeof game!=="undefined"&&game.module&&game.module.login){
+    var L=game.module.login.LoginModule;
+    L.prototype.prelogin=function(){this._isNewUser=false;this.currentZone={zone_id:1,user_id:UID,name:"本地离线服",status:1,repair:0};this.host="127.0.0.1";this.port=19999;DM.userID=long(UID);return Promise.resolve();};
+    if(game.module.login.LoginUI){var ui=game.module.login.LoginUI.prototype,old=ui.getServerList;ui.getServerList=function(){old.call(this);var self=this;Laya.timer.once(350,this,function(){if(self.currentServerNode)self.onStartClick();});};}
+  }
+  if(typeof DM!=="undefined"&&DM.G){var dm=DM.G(),change=dm.onUserInfoChange;dm.onUserInfoChange=function(e){var r=change&&change.call(this,e);save();return r;};}
+  function ensure(){if(!current)current=userInfo();if(typeof DM!=="undefined"&&DM.G){DM.G().userInfo=current;DM.G().userLeadValue=[];DM.G().offineInfo=new rp.OffineLineInfo();DM.G().openSvrDays=20;DM.serverTime=Date.now();}save();}
+  window.OfflineGame={
+    version:1,save:save,
+    getState:function(){var u=(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo)||current;return u&&u.baseInfo?{name:u.baseInfo.name,level:u.baseInfo.level,gold:String(u.baseInfo.moneyInfo.gold),diamond:u.baseInfo.moneyInfo.diamond,cash:u.baseInfo.moneyInfo.cash}:{};},
+    addGold:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.gold=long(Number(m.gold||0)+Number(n||0));save();},
+    addDiamond:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.diamond=Number(m.diamond||0)+Number(n||0);save();},
+    addCash:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.cash=Number(m.cash||0)+Number(n||0);save();},
+    saveAndNotify:function(){ensure();try{var e=new rp.EntireNotify();e.userBaseInfo=DM.G().userInfo.baseInfo;DM.G().onUserInfoChange(e);}catch(x){}save();},
+    reset:function(){localStorage.removeItem(KEY);location.reload();},
+    bots:bots().map(function(x){return {name:x.name,level:x.level,offline:true};})
+  };
+  setInterval(save,15000);window.addEventListener("beforeunload",save);log("offline patch installed");
+})();
+"""
+
+OVERLAY = """
+<style id="offline-menu-style">
+#offline-menu-button{position:fixed;z-index:2147483646;right:10px;top:10px;padding:8px 12px;border-radius:10px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:14px sans-serif}
+#offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:52px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
+#offline-menu-panel h3{margin:0 0 8px;font-size:16px;color:#8de2ff}
+#offline-menu-panel .stat{font-size:12px;line-height:1.6;margin-bottom:8px;color:#d6edff}
+#offline-menu-panel button{width:100%;margin:4px 0;padding:8px;border:0;border-radius:8px;background:#287bb6;color:#fff;font-size:13px}
+#offline-menu-panel .danger{background:#9e3946}.offline-note{font-size:11px;color:#ffdd9c;margin-top:7px;line-height:1.4}
+</style>
+<div id="offline-menu-button">离线菜单</div>
+<div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
+<button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
+<div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
+<script>
+(function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat");if(!b||!p)return;
+b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+},250);})();
+</script>
+"""
+
+def patch(root: Path) -> None:
+    index, code = root/"index.html", root/"code.js"
+    if not index.is_file() or not code.is_file():
+        raise SystemExit("index.html/code.js missing")
+    html=index.read_text(encoding="utf-8",errors="replace")
+    html=html.replace('<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>','')
+    html=html.replace("https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/libQuickSDKH5_To_Client.js","./libQuickSDKH5_To_Client.js")
+    if "offline-menu-button" not in html:
+        html=html.replace("</body>",OVERLAY+"\n</body>")
+    index.write_text(html,encoding="utf-8")
+    text=code.read_text(encoding="utf-8",errors="replace")
+    sentinel="new GameShell;"
+    if text.count(sentinel)!=1:
+        raise SystemExit(f"expected one GameShell sentinel, got {text.count(sentinel)}")
+    if "SUPER_SPIRIT_BALL_OFFLINE_PATCH_V1" not in text:
+        text=text.replace(sentinel,HOOK+"\n"+sentinel)
+    code.write_text(text,encoding="utf-8")
+
+if __name__=="__main__":
+    ap=argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("client_dir",type=Path)
+    args=ap.parse_args();patch(args.client_dir)
+    print("offline H5 patch applied:",args.client_dir)
