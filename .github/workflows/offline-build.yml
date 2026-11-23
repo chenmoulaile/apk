@@ -47,8 +47,9 @@ jobs:
         shell: bash
         run: |
           sudo mkdir -p /usr/local/lib/apktool
-          curl -fL --retry 3 -o /usr/local/lib/apktool/apktool.jar \
+          curl -fL --retry 3 -o /tmp/apktool.jar \
             https://github.com/iBotPeaches/Apktool/releases/download/v2.10.0/apktool_2.10.0.jar
+          sudo install -m 0644 /tmp/apktool.jar /usr/local/lib/apktool/apktool.jar
           printf '#!/bin/sh\nexec java -jar /usr/local/lib/apktool/apktool.jar "$@"\n' | sudo tee /usr/local/bin/apktool >/dev/null
           sudo chmod +x /usr/local/bin/apktool
           apktool --version
