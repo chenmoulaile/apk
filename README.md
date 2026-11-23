@@ -1,6 +1,6 @@
 # 超级精灵球离线化研究
 
-> 状态：静态分析完成第一轮；尚未形成可玩的离线 APK。当前仓库在任务开始时为空，原始 APK 由用户在对话中单独上传。
+> 状态：静态分析已完成第一轮，云端动态探测正在执行；尚未形成可玩的离线 APK。原始 APK 已由用户上传到仓库根目录。
 
 ## 目录约定
 
@@ -32,7 +32,7 @@ python3 work/tools/make_login_notify.py --uid offline-local-001 --username "离�
 
 第三个工具只生成已确认的 QuickSDK `loginNotify` 桥接输入（JSON 与 Base64），便于离线桥接测试；它不等于游戏网关登录响应，也没有被注入原 APK。
 
-更完整的接口归属和交叉引用见 [work/analysis/sdk-endpoints.md](work/analysis/sdk-endpoints.md)。当前构建环境没有 APK 反编译/打包工具链，且没有 H5 游戏资源，因此 `dist/` 仅预留输出位置。
+更完整的接口归属和交叉引用见 [work/analysis/sdk-endpoints.md](work/analysis/sdk-endpoints.md)。当前本地工作环境没有 APK 反编译/打包工具链；云端 Actions 已配置 Android SDK/模拟器探测流程。H5 资源是否能从旧入口恢复，须以动态探测产物为准，因此 `dist/` 暂无可验证的离线 APK。
 
 
 ## 云端动态探测
