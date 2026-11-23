@@ -1,0 +1,3 @@
+# Temporary extraction, logs and intermediate files
+/tmp/*
+!/tmp/.gitkeep
