@@ -14,7 +14,7 @@ permissions:
 
 concurrency:
   group: android-probe-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   probe:
@@ -81,6 +81,7 @@ jobs:
           heap-size: 512M
           disk-size: 4G
           emulator-boot-timeout: 600
+          disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
