@@ -36,10 +36,30 @@ APK ZIP 中没有任何 `.html` / `.htm` 游戏文件，也没有除 SDK 桥接�
 | 用途 | APK 中发现的地址 | 证据 |
 |---|---|---|
 | H5 游戏入口 | `https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html` | MainActivity 构造方法中的常量字符串 |
-| 游戏网关根地址 | `https://cjlq-gw.ruiruiyouxi.com/` | DEX 常量字符串 |
+| 发现的域名常量 | `https://cjlq-gw.ruiruiyouxi.com/` | DEX 交叉引用定位到 `com.ruirui.cjjlq.wxapi.WXEntryActivity.shareToWechatMiniGame`；目前不能认定为游戏 API 基址 |
 | QuickGame SDK IP 配置 | `https://sdkapi-qg.ruiruiyouxi.com` | `assets/quickgame_sdk/qg_ipconfig.txt` |
 
-尝试访问前两个旧域名时，当前网络访问工具返回不可访问；运行环境的 DNS 请求也失败。因此尚不能确认服务是否仍在线、域名是否已停用或仅当前环境无法解析。
+对 H5 入口和上述域名根地址的外部访问尝试未能获得网页内容；当前运行环境的 DNS 查询也失败。尚不能确认服务是否仍在线、域名是否已停用或仅当前环境无法解析。
+
+## DEX 字符串交叉引用结果（已定位调用类/方法）
+
+通过扫描 DEX 指令中的 `const-string` / `const-string-jumbo` 引用，将路径字符串定位到包含它们的类和方法。详细复现脚本为 `work/tools/dex_xref.py`。
+
+| 字符串 | 引用位置 | 可得结论 |
+|---|---|---|
+| `https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html` | `com.qk.plugin.js.shell.MainActivity.<init>` | 原生壳的 H5 入口 URL |
+| `https://cjlq-gw.ruiruiyouxi.com/` | `com.ruirui.cjjlq.wxapi.WXEntryActivity.shareToWechatMiniGame` | 位于微信小游戏分享代码；不是已证实的游戏 HTTP API |
+| `/v1/user/autoLogin` | QuickSDK 的 `AccountLoginFragment.autoLoginByToken`、`ActiveFragment.autoLoginByToken`、`AutoLoginFragment.autoLoginByToken`、`SwitchAccountFragment.getAccount` | 渠道 SDK 账号自动登录 |
+| `/v1/user/loginByName` | QuickSDK 的 `AccountLoginFragment.accountLogin`、`AutoLoginFragment.login` | 渠道 SDK 账号登录 |
+| `/v1/user/userLoginByOtherSdk` | QuickSDK 的 `ThirdManager.thridLogin` | 第三方渠道登录 |
+| `/v1/user/registerVisitor` | QuickSDK 的 `LoginManager.slienceLogin`、`AccountLoginFragment.tryPlay` | QuickSDK 游客登录 |
+| `/v1/auth/getUserInfo` | QuickSDK 的 `LoginManager.requestQGUserExtraInfo` | SDK 用户扩展信息 |
+| `/v1/auth/setGameRoleInfo` | QuickSDK 的 `LoginManager.setGameRoleInfo` | SDK 角色信息上报 |
+| `/v1/auth/createOrder` | QuickSDK 的 `QGPayManager.createOrder`、`orderSDKCoins` | SDK 支付下单 |
+| `/simulator/mobile/login` | `com.bytedance.bdtracker.v3.doInBackground` | 字节跳动统计 SDK 路径，不是游戏账号登录 |
+| `/leaderboard/v1/...` | TapTap SDK 的 `com.taptap.sdk.common.network.NetworkClientKt.provideOkHttpClient` 中有路径常量引用 | TapTap SDK 排行榜集成线索；不能证明是游戏自有排行榜协议 |
+
+这轮交叉引用说明：DEX 里确实存在不少登录和排名路径，但它们分属 QuickSDK、ByteDance 统计和 TapTap SDK。仅凭这些常量不能拼出 H5 游戏本身的登录请求/响应。游戏 H5 自己的 API 仍然未知。
 
 ## QuickSDK 登录桥接协议（已确认）
 
@@ -156,6 +176,10 @@ DEX 中还包含 TapTap SDK 的授权和排行榜路径，例如：
 4. 另一份仍能打开该游戏的安装包/渠道包，或已导出的游戏资源包。
 
 收到这些材料后，按“游戏启动 → 渠道登录 → 游戏网关登录 → 玩家档案 → 配置/道具 → 存档读写”逐步还原，不跳过未确认字段。
+
+## 当前构建环境与状态
+
+本次环境中没有检测到 `apktool`、`jadx`、`aapt/aapt2`、`d8`、`smali`、`adb`、`gradle` 或 `zipalign`。尝试从网络下载工具时 DNS 无法解析，因此没有完成反编译/重打包工具链安装。仓库当前仅提交静态分析和可重复的 Python 检查脚本，`dist/` 尚无 APK。没有执行过设备运行测试或安装测试。
 
 ## 仓库规则
 
