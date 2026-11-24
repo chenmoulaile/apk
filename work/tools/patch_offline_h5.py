@@ -466,14 +466,21 @@ HOOK = r"""
     var teamId=stageCfg&&stageCfg.fightId&&Number(stageCfg.fightId[0])||0;
     var team=teamId&&GC.G().PVE_TEAM_CONF.getDes(teamId);
     var result=new Array(6);
-    if(!team||!Array.isArray(team.petId))return result;
+    result.__offlineConfigValid=true;
+    if(!team||!Array.isArray(team.petId)){
+      result.__offlineConfigValid=false;
+      log("local PVE enemy team missing",Number(stage),teamId);
+      return result;
+    }
+    var expectedEnemies=team.petId.filter(function(id){return Number(id)>0;}).length;
+    var loadedEnemies=0;
     for(var i=0;i<6;i++){
       var id=Number(team.petId[i])||0;
       if(!id)continue;
       var pvePet=GC.G().PVE_PET_CONF.getDes(id);
-      if(!pvePet)continue;
+      if(!pvePet){result.__offlineConfigValid=false;continue;}
       var cfg=GC.G().spiritConfig.getDes(Number(pvePet.petId));
-      if(!cfg)continue;
+      if(!cfg){result.__offlineConfigValid=false;continue;}
       // The archived PVE table provides the opponent's exact species and level;
       // this deterministic local simulator uses that species' base combat stats.
       var level=Number(pvePet.petLevel)||1;
@@ -481,6 +488,11 @@ HOOK = r"""
       result[i]=offlineCombatPet(cfg.id,level,Math.round(Number(cfg.hp||1)*factor),
         Math.round(Number(cfg.attack||cfg.basicAttack||1)*factor),
         Math.round(Number(cfg.defense||cfg.basicDefense||0)*factor),cfg.basicSkill);
+      loadedEnemies++;
+    }
+    if(loadedEnemies!==expectedEnemies){
+      result.__offlineConfigValid=false;
+      log("local PVE enemy config incomplete",Number(stage),loadedEnemies,expectedEnemies);
     }
     return result;
   }
@@ -589,14 +601,15 @@ HOOK = r"""
     var playerAlive=offlineLivingCount(playerSide),enemyAlive=offlineLivingCount(enemySide);
     var playerCount=playerSide.filter(function(p){return !!p;}).length;
     var enemyCount=enemySide.filter(function(p){return !!p;}).length;
-    data.result=enemyAlive===0?rp.CombatResult.WIN:playerAlive===0?rp.CombatResult.LOSE:
+    data.result=enemyCount===0||enemySide.__offlineConfigValid===false?rp.CombatResult.LOSE:
+      enemyAlive===0?rp.CombatResult.WIN:playerAlive===0?rp.CombatResult.LOSE:
       playerSide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)>=
       enemySide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)?rp.CombatResult.WIN:rp.CombatResult.LOSE;
     var finish=new rp.CombatOneStep();finish.doWhat=rp.CombatStepType.END;finish.round=round;finish.source=0;
     data.steps.push(finish);data.totalRound=round;data.time=Math.max(3,round*3);data.rewards=[];
     data.ownDeadPetNum=playerCount-playerAlive;data.enermyDeadPetNum=enemyCount-enemyAlive;
     log("local combat simulation","stage",stage,"rounds",round,"steps",data.steps.length,
-      "players",playerAlive,"enemies",enemyAlive,"result",data.result);
+      "players",playerAlive+"/"+playerCount,"enemies",enemyAlive+"/"+enemyCount,"result",data.result);
     return data;
   }
   function makeOfflineSceneFight(req){
