@@ -39,6 +39,9 @@ HOOK = r"""
     if(!u.guideScheduleInfo.pokemonComing)u.guideScheduleInfo.pokemonComing={};
     u.guideScheduleInfo.pokemonComing.isFinish=1;
     if(!u.guideScheduleInfo.challenges)u.guideScheduleInfo.challenges=[];
+    if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
+    if(!u.activityInfo.trialTowerInfo)u.activityInfo.trialTowerInfo=new rp.TrialTowerInfo();
+    if(!u.activityInfo.trialTowerInfo.levels)u.activityInfo.trialTowerInfo.levels={};
   }
   function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
   function userInfo(){
