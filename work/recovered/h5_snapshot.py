@@ -245,6 +245,53 @@ def main() -> int:
                             queue.update(path_candidates(key))
                             walk(child)
                 walk(parsed)
+                # Battle sprites and skill effects are looked up dynamically from
+                # the config tables and cannot be discovered by scanning code.js.
+                pet_rows = parsed.get("cdc_pet_conf", [])
+                pet_by_id = {
+                    int(row.get("id", 0)): row
+                    for row in pet_rows
+                    if isinstance(row, dict) and str(row.get("id", "")).isdigit()
+                }
+                combat_pet_ids = {3101}
+                for team in parsed.get("cdc_pve_team_conf", []):
+                    if not isinstance(team, dict):
+                        continue
+                    pet_ids = team.get("petId", [])
+                    if isinstance(pet_ids, list):
+                        for pet_id in pet_ids:
+                            try:
+                                combat_pet_ids.add(int(pet_id))
+                            except (TypeError, ValueError):
+                                pass
+                combat_sprite_refs = set()
+                for pet_id in combat_pet_ids:
+                    pet = pet_by_id.get(pet_id)
+                    if not pet:
+                        continue
+                    image = pet.get("spiritImage")
+                    if not isinstance(image, str) or not image:
+                        continue
+                    image_path = PurePosixPath(image)
+                    if not image_path.is_absolute() and ".." not in image_path.parts:
+                        combat_sprite_refs.add(str(PurePosixPath("res/combat/spirits") / image_path))
+                combat_effect_refs = set()
+                for effect in parsed.get("cdc_effect_conf", []):
+                    if not isinstance(effect, dict):
+                        continue
+                    image = effect.get("imgFile")
+                    if isinstance(image, str) and image and "/" not in image and ".." not in image:
+                        combat_effect_refs.add(f"res/combat/skills/{image}.atlas")
+                for buff in parsed.get("cdc_buff_conf", []):
+                    if not isinstance(buff, dict):
+                        continue
+                    animation = buff.get("animation")
+                    if isinstance(animation, str) and animation and "/" not in animation and ".." not in animation:
+                        combat_effect_refs.add(f"res/combat/skills/{animation}.atlas")
+                queue.update(combat_sprite_refs)
+                queue.update(combat_effect_refs)
+                manifest["combat_pet_sprite_candidates"] = len(combat_sprite_refs)
+                manifest["combat_effect_atlas_candidates"] = len(combat_effect_refs)
             except json.JSONDecodeError as exc:
                 manifest["errors"].append({"path": "zip.txt", "error": f"decompressed but JSON parse failed: {exc}"})  # type: ignore[union-attr]
             manifest["config_decompressed"] = {
