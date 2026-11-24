@@ -89,7 +89,7 @@ def path_candidates(text: str) -> set[str]:
     return found
 
 
-def fetch_bytes(url: str, timeout: int = 30) -> tuple[bytes, dict[str, str]]:
+def fetch_bytes(url: str, timeout: int = 60) -> tuple[bytes, dict[str, str]]:
     request = urllib.request.Request(
         url,
         headers={"User-Agent": "Mozilla/5.0 (compatible; GamePreservationBot/1.0)"},
@@ -189,7 +189,7 @@ def main() -> int:
         nonlocal total_bytes
         newly_downloaded: list[str] = []
         pending = sorted(set(items))
-        max_attempts = 3
+        max_attempts = 5
 
         def is_transient(error: str | None) -> bool:
             if not error:
@@ -202,6 +202,8 @@ def main() -> int:
                 "ConnectionAbortedError:",
                 "IncompleteRead:",
                 "HTTP 5",
+                "HTTP 403",
+                "HTTP 429",
             ))
 
         for attempt in range(max_attempts):
@@ -250,6 +252,9 @@ def main() -> int:
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
         )
         print("ERROR: code.js could not be downloaded")
+        for item in manifest["errors"]:  # type: ignore[union-attr]
+            if item.get("path") in {"code.js", "index.html", "zip.txt"}:
+                print("CORE DOWNLOAD ERROR:", json.dumps(item, ensure_ascii=False))
         return 2
 
     code = code_path.read_text(encoding="utf-8", errors="replace")
