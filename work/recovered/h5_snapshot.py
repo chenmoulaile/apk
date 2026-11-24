@@ -219,6 +219,24 @@ def main() -> int:
         else:
             manifest["errors"].append({"path": "zip.txt", "error": "could not decompress with zlib variants"})  # type: ignore[union-attr]
 
+    # Scene tile images are requested dynamically by PicObject as
+    # res/scene/<id>/<tile>.jpg, so ordinary string scanning cannot discover them.
+    scene_refs: set[str] = set()
+    for scene_id, width, height in re.findall(
+        r"new e\\.SceneDes\\(\\[(\\d+),(\\d+),(\\d+),", code
+    ):
+        sid, columns, rows = int(scene_id), int(width), int(height)
+        scene_refs.update({
+            f"res/scene/{sid}/icon.png",
+            f"res/scene/{sid}/area.png",
+            f"res/scene/{sid}/temp.jpg",
+        })
+        scene_refs.update(
+            f"res/scene/{sid}/{tile}.jpg"
+            for tile in range(1, columns * rows + 1)
+        )
+    queue.update(scene_refs)
+
     # Download all literal assets and any additional paths referenced by config.
     downloaded = fetch_batch(queue)
     # CORE_FILES are fetched in the first batch, before code/config discovery.
