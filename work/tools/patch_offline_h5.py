@@ -507,28 +507,329 @@ HOOK = r"""
       log("local point item reward",id,amount,map[id]);
     }catch(e){log("local point item update",e&&e.stack||e);}
   }
+  function localItemConfig(id){
+    try{return util.UConfig.getItemCfg(Number(id));}catch(_){}
+    try{return GC.G().itemConfig.getDes(Number(id));}catch(_){}
+    return null;
+  }
+  function localEquipmentPosition(id){
+    var cfg=localItemConfig(id);
+    if(!cfg||Number(cfg.type)!==3)return 0;
+    var pos=Number(cfg.position)||0;
+    return pos>=1&&pos<=4?pos:0;
+  }
+  function localEquipmentScore(item){
+    var cfg=localItemConfig(item&&item.id),attrs=cfg&&cfg.attr||[];
+    var value=0;
+    for(var i=0;i<attrs.length;i++)value+=Math.abs(Number(attrs[i].addValue)||0);
+    return (Number(cfg&&cfg.grade)||0)*1000000+value;
+  }
+  function localNextItemSid(pack){
+    var next=Math.max(100002,Math.floor(Number(pack.sidGenerator)||100002));
+    while(pack.sidMap[String(next)])next++;
+    pack.sidGenerator=long(next+1);
+    return long(next);
+  }
+  function localMakeEquipmentItem(id,pack,template){
+    var item=new rp.ItemBase();
+    item.id=Number(id);item.sid=localNextItemSid(pack);item.count=1;
+    item.starLevel=Number(template&&template.starLevel)||0;
+    item.equipInfo=new rp.ItemBaseEquip();
+    item.equipInfo.strengLevel=Number(template&&template.equipInfo&&template.equipInfo.strengLevel)||0;
+    item.equipInfo.magicLevel=Number(template&&template.equipInfo&&template.equipInfo.magicLevel)||0;
+    item.equipInfo.magicExp=Number(template&&template.equipInfo&&template.equipInfo.magicExp)||0;
+    item.equipInfo.itemId=template&&template.equipInfo&&template.equipInfo.itemId||[];
+    item.equipInfo.equipIndex=localEquipmentPosition(id);
+    item.genId=Number(item.sid);
+    pack.sidMap[String(item.sid)]=item;
+    return item;
+  }
+  function refreshLocalItemIndexes(u){
+    try{
+      var dm=typeof DM!=="undefined"&&DM.G&&DM.G();
+      if(!dm||!u||!u.itemPackInfo)return;
+      var pack=u.itemPackInfo,all=[],byId={};
+      function append(item){
+        if(!item)return;
+        all.push(item);
+        byId[Number(item.id)]=item;
+      }
+      Object.keys(pack.idMap||{}).forEach(function(k){append(pack.idMap[k]);});
+      Object.keys(pack.sidMap||{}).forEach(function(k){append(pack.sidMap[k]);});
+      dm.itemPackInfos=all;dm.itemIdMap=byId;
+    }catch(e){log("local item index rebuild",e&&e.stack||e);}
+  }
+  function normalizeLocalEquipmentInventory(u){
+    if(!u)return;
+    if(!u.itemPackInfo)u.itemPackInfo=new rp.ItemPackInfo();
+    var pack=u.itemPackInfo;
+    if(!pack.idMap)pack.idMap={};
+    if(!pack.sidMap)pack.sidMap={};
+    // Older offline saves stored equipment in idMap as stackable items.
+    // Convert those counts to one uniquely-addressed ItemBase per piece.
+    Object.keys(pack.idMap).forEach(function(k){
+      var id=Number(k),pos=localEquipmentPosition(id),old=pack.idMap[k];
+      if(!pos||!old)return;
+      var count=Math.max(0,Math.floor(Number(old.count)||0));
+      for(var i=0;i<count;i++)localMakeEquipmentItem(id,pack,old);
+      delete pack.idMap[k];
+      log("local equipment inventory migrated",id,count);
+    });
+    // PackNode.equip is the authoritative worn-equipment list. Keep every
+    // worn ItemBase in sidMap as well so inventory and save remain stable.
+    var packs=u.petPackInfo&&u.petPackInfo.packArray||[];
+    packs.forEach(function(node){
+      if(!node)return;
+      if(!Array.isArray(node.equip))node.equip=[];
+      node.equip.forEach(function(item){
+        if(!item||!localEquipmentPosition(item.id))return;
+        if(item.sid==null||String(item.sid)==="0"){
+          item.sid=localNextItemSid(pack);item.genId=Number(item.sid);
+        }
+        if(!item.equipInfo)item.equipInfo=new rp.ItemBaseEquip();
+        item.equipInfo.equipIndex=localEquipmentPosition(item.id);
+        item.count=1;
+        pack.sidMap[String(item.sid)]=item;
+      });
+    });
+    Object.keys(pack.sidMap).forEach(function(k){
+      var item=pack.sidMap[k];
+      if(!item)return;
+      if(item.sid==null||String(item.sid)==="0")item.sid=long(k);
+      item.id=Number(item.id)||0;item.count=1;
+      if(!item.equipInfo)item.equipInfo=new rp.ItemBaseEquip();
+      item.equipInfo.equipIndex=localEquipmentPosition(item.id);
+      if(!item.genId)item.genId=Number(item.sid)||0;
+    });
+    refreshLocalItemIndexes(u);
+    log("local equipment inventory normalized",
+      Object.keys(pack.sidMap).length,Object.keys(pack.idMap).length);
+  }
   function addLocalItem(id,amount){
     try{
       var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
       if(!u)return;
       if(!u.itemPackInfo)u.itemPackInfo=new rp.ItemPackInfo();
       if(!u.itemPackInfo.idMap)u.itemPackInfo.idMap={};
-      id=Number(id);amount=Number(amount)||0;
-      var item=u.itemPackInfo.idMap[id];
-      if(!item)item=u.itemPackInfo.idMap[id]=new rp.ItemBase();
-      item.id=id;item.count=Math.max(0,Number(item.count)||0)+amount;
-      try{
-        if(typeof DM!=="undefined"&&DM.G){
-          var dm=DM.G();
-          dm.itemIdMap=dm.itemIdMap||{};dm.itemIdMap[id]=item;
-          if(Array.isArray(dm.itemPackInfos)){
-            var at=dm.itemPackInfos.findIndex(function(x){return x&&Number(x.id)===id;});
-            if(at<0)dm.itemPackInfos.push(item);else dm.itemPackInfos[at]=item;
-          }
-        }
-      }catch(_){}
-      log("local item reward",id,amount,item.count);
+      if(!u.itemPackInfo.sidMap)u.itemPackInfo.sidMap={};
+      id=Number(id);amount=Math.max(0,Math.floor(Number(amount)||0));
+      if(!id||!amount)return;
+      var position=localEquipmentPosition(id),last=null;
+      if(position){
+        normalizeLocalEquipmentInventory(u);
+        for(var i=0;i<amount;i++)last=localMakeEquipmentItem(id,u.itemPackInfo,null);
+        refreshLocalItemIndexes(u);
+        log("local equipment item reward",id,amount,"position",position,
+          "sid",last&&String(last.sid));
+      }else{
+        var item=u.itemPackInfo.idMap[id];
+        if(!item)item=u.itemPackInfo.idMap[id]=new rp.ItemBase();
+        item.id=id;item.count=Math.max(0,Number(item.count)||0)+amount;
+        refreshLocalItemIndexes(u);
+        log("local item reward",id,amount,item.count);
+      }
     }catch(e){log("local item update",e&&e.stack||e);}
+  }
+  function localItemBySid(u,sid){
+    var map=u&&u.itemPackInfo&&u.itemPackInfo.sidMap||{},key=String(sid);
+    if(map[key])return map[key];
+    var keys=Object.keys(map);
+    for(var i=0;i<keys.length;i++)if(map[keys[i]]&&String(map[keys[i]].sid)===key)return map[keys[i]];
+    var packs=u&&u.petPackInfo&&u.petPackInfo.packArray||[];
+    for(var p=0;p<packs.length;p++){
+      var eq=packs[p]&&packs[p].equip||[];
+      for(var j=0;j<eq.length;j++)if(eq[j]&&String(eq[j].sid)===key)return eq[j];
+    }
+    return null;
+  }
+  function localEquipmentOwners(u){
+    var owners={},packs=u&&u.petPackInfo&&u.petPackInfo.packArray||[];
+    packs.forEach(function(node,slot){
+      if(!node)return;
+      (node.equip||[]).forEach(function(item){
+        if(item&&item.sid!=null)owners[String(item.sid)]={
+          slot:slot,spiritId:node.pet&&Number(node.pet.id)||0
+        };
+      });
+    });
+    return owners;
+  }
+  function localMakeEquipSimple(item,spiritId,position){
+    var simple=new rp.EquipSimpleInfo(),cfg=localItemConfig(item&&item.id);
+    simple.itemId=Number(item&&item.id)||0;
+    simple.sid=Number(item&&item.sid)||0;
+    simple.spiritId=Number(spiritId)||0;
+    simple.equipType=Number(position)||localEquipmentPosition(simple.itemId);
+    simple.strengLevel=Number(item&&item.equipInfo&&item.equipInfo.strengLevel)||0;
+    simple.genId=Number(item&&item.genId)||simple.sid;
+    simple.starLevel=Number(item&&item.starLevel)||0;
+    simple.attrInfo=new rp.PkAttrInfo();
+    (cfg&&cfg.attr||[]).forEach(function(a){
+      var field=Number(a.attrId)===12?"oldHp":
+        Number(a.attrId)===13?"oldAttack":Number(a.attrId)===14?"oldDefense":null;
+      if(field)simple.attrInfo[field]=Number(a.addValue)||0;
+    });
+    return simple;
+  }
+  function localMakeEquipDetail(item,position){
+    if(!item)return null;
+    var d=new rp.EquipDetailInfo(),cfg=localItemConfig(item.id);
+    d.itemId=Number(item.id)||0;d.sid=Number(item.sid)||0;
+    d.equipType=Number(position)||localEquipmentPosition(item.id);
+    d.starLevel=Number(item.starLevel)||0;
+    d.strengInfo=new rp.EquipStrengInfo();
+    d.strengInfo.strengLevel=Number(item.equipInfo&&item.equipInfo.strengLevel)||0;
+    d.strengInfo.attrInfo=new rp.PkAttrInfo();
+    d.strengInfo.nextAttrInfo=new rp.PkAttrInfo();
+    d.strengInfo.needItemNum=0;
+    (cfg&&cfg.attr||[]).forEach(function(a){
+      var field=Number(a.attrId)===12?"oldHp":
+        Number(a.attrId)===13?"oldAttack":Number(a.attrId)===14?"oldDefense":null;
+      if(field)d.strengInfo.attrInfo[field]=Number(a.addValue)||0;
+    });
+    d.magicInfo=new rp.EquipMagicInfo();d.magicInfo.magicItem=[];
+    d.inlayInfo=[];
+    d.suitInfo=new rp.EquipSuitInfo();
+    d.suitInfo.suitItemInfo=[];d.suitInfo.attrInfo=[];
+    return d;
+  }
+  function localEquipmentRecords(u){
+    normalizeLocalEquipmentInventory(u);
+    var pack=u.itemPackInfo||{},owners=localEquipmentOwners(u),seen={},items=[];
+    Object.keys(pack.sidMap||{}).forEach(function(k){
+      var item=pack.sidMap[k];
+      if(!item||!localEquipmentPosition(item.id))return;
+      var sid=String(item.sid);
+      if(seen[sid])return;
+      seen[sid]=true;items.push(item);
+    });
+    (u.petPackInfo&&u.petPackInfo.packArray||[]).forEach(function(node){
+      (node&&node.equip||[]).forEach(function(item){
+        if(!item||!localEquipmentPosition(item.id))return;
+        var sid=String(item.sid);
+        if(seen[sid])return;
+        seen[sid]=true;items.push(item);
+      });
+    });
+    return items.map(function(item){
+      var owner=owners[String(item.sid)]||null;
+      return {item:item,owner:owner?owner.spiritId:0,ownerSlot:owner?owner.slot:-1,
+        position:localEquipmentPosition(item.id)};
+    });
+  }
+  function localMakeSpiritEquipmentRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    var index=Number(req&&req.index),slot=index-1;
+    if(!isFinite(slot)||Math.floor(slot)!==slot||slot<0||slot>=18){r.ret=1;return r;}
+    normalizePetPack(u);
+    var node=u.petPackInfo.packArray[slot],petId=node&&node.pet&&Number(node.pet.id)||0;
+    r.ret=0;r.equipInfoList=(node&&node.equip||[]).filter(function(item){
+      return item&&localEquipmentPosition(item.id)>0;
+    }).map(function(item){
+      return localMakeEquipSimple(item,petId,localEquipmentPosition(item.id));
+    });
+    log("local equipment worn query",index,r.equipInfoList.length);
+    return r;
+  }
+  function localMakeEquipmentListRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    var type=Number(req&&req.equipType)||0;
+    r.ret=0;r.equipInfoList=localEquipmentRecords(u).filter(function(x){
+      return !type||x.position===type;
+    }).map(function(x){return localMakeEquipSimple(x.item,x.owner,x.position);});
+    log("local equipment inventory query",type,r.equipInfoList.length);
+    return r;
+  }
+  function localApplyEquipmentChange(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    normalizeLocalEquipmentInventory(u);
+    var slot=Number(req&&req.index)-1,type=Number(req&&req.equipType),sid=Number(req&&req.sid)||0;
+    if(!isFinite(slot)||Math.floor(slot)!==slot||slot<0||slot>=18||type<1||type>4){r.ret=1;return r;}
+    var packs=u.petPackInfo.packArray,node=packs[slot];
+    if(!node||!node.pet){r.ret=1;return r;}
+    if(!Array.isArray(node.equip))node.equip=[];
+    var previous=node.equip.find(function(x){return x&&localEquipmentPosition(x.id)===type;})||null;
+    var selected=sid?localItemBySid(u,sid):null;
+    if(sid&&(!selected||localEquipmentPosition(selected.id)!==type)){
+      r.ret=1;log("local equipment change rejected",slot+1,type,sid);return r;
+    }
+    if(selected&&previous&&String(selected.sid)===String(previous.sid)){
+      r.ret=0;r.equipInfo=localMakeEquipDetail(selected,type);return r;
+    }
+    if(selected){
+      packs.forEach(function(other,otherIndex){
+        if(!other||otherIndex===slot)return;
+        other.equip=(other.equip||[]).filter(function(x){
+          return !x||String(x.sid)!==String(selected.sid);
+        });
+      });
+    }
+    node.equip=node.equip.filter(function(x){return !x||localEquipmentPosition(x.id)!==type;});
+    if(selected){
+      if(!selected.equipInfo)selected.equipInfo=new rp.ItemBaseEquip();
+      selected.equipInfo.equipIndex=type;selected.count=1;
+      node.equip.push(selected);
+      r.equipInfo=localMakeEquipDetail(selected,type);
+    }else{
+      r.equipInfo=previous?localMakeEquipDetail(previous,type):null;
+    }
+    node.equip.sort(function(a,b){
+      return localEquipmentPosition(a&&a.id)-localEquipmentPosition(b&&b.id);
+    });
+    refreshLocalItemIndexes(u);
+    r.ret=0;save();
+    log("local equipment changed",slot+1,type,sid?"equip":"unequip",node.equip.length);
+    return r;
+  }
+  function localAutoWearEquipment(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    normalizeLocalEquipmentInventory(u);
+    var slot=Number(req&&req.index)-1;
+    if(!isFinite(slot)||Math.floor(slot)!==slot||slot<0||slot>=18){r.ret=1;return r;}
+    var node=u.petPackInfo.packArray[slot];
+    if(!node||!node.pet){r.ret=1;return r;}
+    var ownerBySid=localEquipmentOwners(u),records=localEquipmentRecords(u);
+    var old=node.equip||[],next=[];
+    old.forEach(function(item){
+      if(item&&!localEquipmentPosition(item.id))next.push(item);
+    });
+    var changed=false,selectedPositions=[];
+    for(var pos=1;pos<=4;pos++){
+      var candidates=[];
+      records.forEach(function(rec){
+        if(rec.position!==pos)return;
+        var owner=ownerBySid[String(rec.item.sid)]||null;
+        var wornHere=(old||[]).some(function(x){return x&&String(x.sid)===String(rec.item.sid);});
+        if(owner&&owner.slot!==slot&&!wornHere)return;
+        candidates.push(rec.item);
+      });
+      var currentItem=old.find(function(item){return item&&localEquipmentPosition(item.id)===pos;});
+      if(currentItem&&!candidates.some(function(x){return String(x.sid)===String(currentItem.sid);}))candidates.push(currentItem);
+      candidates.sort(function(a,b){return localEquipmentScore(b)-localEquipmentScore(a);});
+      var best=candidates[0]||null;
+      if(best){
+        next.push(best);selectedPositions.push(pos);
+        if(!currentItem||String(currentItem.sid)!==String(best.sid))changed=true;
+      }else if(currentItem)changed=true;
+    }
+    node.equip=next;
+    node.equip.sort(function(a,b){
+      return localEquipmentPosition(a&&a.id)-localEquipmentPosition(b&&b.id);
+    });
+    var equipped=next.filter(function(x){return x&&localEquipmentPosition(x.id)>0;});
+    r.ret=0;r.changeFlag=changed;
+    r.equipInfoList=equipped.map(function(item){
+      return localMakeEquipSimple(item,Number(node.pet.id),localEquipmentPosition(item.id));
+    });
+    refreshLocalItemIndexes(u);
+    if(changed)save();
+    log("local equipment auto-wear",slot+1,"equipped",equipped.length,
+      "positions",selectedPositions.join(","));
+    return r;
   }
   function applyLocalRewardAction(a){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
@@ -900,10 +1201,16 @@ HOOK = r"""
       if(!current.petRoomInfo)current.petRoomInfo=new rp.PetRoomInfo();
       normalizeGuideSchedule(current);normalizePetPack(current);
       ensureOfflineTaskInfo(current);
+      normalizeLocalEquipmentInventory(current);
+      var restoredEquipCount=(current.petPackInfo.packArray||[]).reduce(function(sum,node){
+        return sum+(node&&node.equip||[]).filter(function(x){return x&&localEquipmentPosition(x.id)>0;}).length;
+      },0);
       log("local save restored inventory",
         current.petPackInfo.packArray.length,
         current.petStorageInfo.petArray.length,
         Object.keys(current.itemPackInfo&&current.itemPackInfo.idMap||{}).length);
+      log("local save restored equipment",restoredEquipCount,
+        Object.keys(current.itemPackInfo&&current.itemPackInfo.sidMap||{}).length);
       return current;
     }
     var u=new rp.UserDataInfo(), b=new rp.UserBaseInfo(), old=saved.userInfo&&saved.userInfo.baseInfo||{};
@@ -946,6 +1253,16 @@ HOOK = r"""
       item.id=Number(item.id)||Number(id);item.count=Math.max(0,Number(item.count)||0);
       u.itemPackInfo.idMap[id]=item;
     });
+    u.itemPackInfo.sidMap={};
+    var storedSidItems=saved.itemPackInfo&&saved.itemPackInfo.sidMap||{};
+    Object.keys(storedSidItems).forEach(function(sid){
+      var raw=storedSidItems[sid]||{},item=new rp.ItemBase();
+      Object.keys(raw).forEach(function(k){item[k]=raw[k];});
+      item.sid=long(raw.sid==null?sid:raw.sid);
+      item.id=Number(item.id)||0;item.count=1;
+      u.itemPackInfo.sidMap[String(item.sid)]=item;
+    });
+    u.itemPackInfo.sidGenerator=long(saved.itemPackInfo&&saved.itemPackInfo.sidGenerator||100002);
     u.sceneBagInfo=new rp.SceneBagInfo();u.sceneBagInfo.sceneBag=new rp.SceneStorageBag();u.sceneBagInfo.limitInfo=new rp.SceneLimitInfo();
     u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
     u.newSceneGradeInfo=new rp.NewSceneGradeInfo();
@@ -986,6 +1303,7 @@ HOOK = r"""
     u.guideScheduleInfo.riseStepByStep.isFinish=1;
     normalizeGuideSchedule(u);normalizePetPack(u);
     ensureOfflineTaskInfo(u);
+    normalizeLocalEquipmentInventory(u);
     log("local JSON fallback restored inventory",
       u.petPackInfo.packArray.length,u.petStorageInfo.petArray.length,
       Object.keys(u.itemPackInfo&&u.itemPackInfo.idMap||{}).length,
@@ -1001,6 +1319,7 @@ HOOK = r"""
     try{
       var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
       if(!u||!u.baseInfo)return;
+      normalizeLocalEquipmentInventory(u);
       var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet;
       var m=u.baseInfo.moneyInfo||new rp.MoneyInfo();
       var packSnapshot=jsonSaveCopy(u.petPackInfo);
@@ -1012,7 +1331,7 @@ HOOK = r"""
         sceneLevel:Number(u.baseInfo.sceneLevel)||1,sceneMapId:1
       };
       var x={
-        version:5,quickCombatUsed:quickCombatUsed,
+        version:6,quickCombatUsed:quickCombatUsed,
         userInfo:{baseInfo:{
           userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,
           level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,
@@ -1102,6 +1421,25 @@ HOOK = r"""
       }
       else if(Resp===rp.GetPetStorageRsp){
         r=makeOfflinePetStorageRsp(r);
+      }
+      else if(Resp===rp.EquipInfoListEquipRsp){
+        r=localAutoWearEquipment(req,r);
+      }
+      else if(Resp===rp.EquipInfoListQueryRsp){
+        r=localMakeEquipmentListRsp(req,r);
+      }
+      else if(Resp===rp.EquipInfoSpiritEquipQueryRsp){
+        r=localMakeSpiritEquipmentRsp(req,r);
+      }
+      else if(Resp===rp.EquipDetailInfoQueryRsp){
+        var detailUser=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+        var detailItem=localItemBySid(detailUser,req&&req.sid);
+        r.ret=detailItem?0:1;
+        r.equipInfo=detailItem?localMakeEquipDetail(detailItem,localEquipmentPosition(detailItem.id)):null;
+        log("local equipment detail",Number(req&&req.sid),!!r.equipInfo);
+      }
+      else if(Resp===rp.EquipInfoChangeRsp){
+        r=localApplyEquipmentChange(req,r);
       }
       else if(Resp===rp.PetFormationChangeRsp){
         r=makeOfflinePackMutation(req,"formationChange",r);
