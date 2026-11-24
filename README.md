@@ -52,3 +52,10 @@ APK 使用本地测试签名，与原版签名不同。安装前需要先卸载�
 - `.github/workflows/offline-build.yml`：自动恢复/回退资源、重打包签名和模拟器验收。
 
 后续修改应继续以 `OFFLINE_SCENE_TEST=PASS` 的断网端到端结果为准，不要仅凭 APK 编译成功就标记通过。
+
+## 当前回归状态
+
+- [Actions #106](https://github.com/chenmoulaile/apk/actions/runs/45405123352)：**PASS**，已验证精灵仓库弹窗、18 个编队槽位、本地仓库读取、主线第 2–4 关和冷启动存档。
+- [Actions #108](https://github.com/chenmoulaile/apk/actions/runs/45407987560)：仓库与主线第 2–6 关的模拟器行为均成功；工作流只因旧金币断言写成 1,099,500，而实际第 6 关存档为 1,109,500，故结论为 FAIL。
+- [Actions #109](https://github.com/chenmoulaile/apk/actions/runs/45416971068)：已修正两处金币断言，正在重跑完整构建与断网模拟器回归。
+
