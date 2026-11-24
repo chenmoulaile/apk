@@ -114,6 +114,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored 1109500 6" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet 2 14300 2420 1320" tmp/offline-test/logcat.txt \
   && grep -q "local save restored points 19000 4000" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored inventory 18" tmp/offline-test/logcat.txt \
   && grep -q "local pet storage loaded 1 18" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \

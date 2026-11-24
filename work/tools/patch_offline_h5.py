@@ -672,6 +672,10 @@ HOOK = r"""
       if(!current.collectCardInfo.nowSeason||!GC.G().CARD_COLLECT_SEASON_CONF.getDes(current.collectCardInfo.nowSeason))current.collectCardInfo.nowSeason=currentCardSeason();
       if(!current.petRoomInfo)current.petRoomInfo=new rp.PetRoomInfo();
       normalizeGuideSchedule(current);normalizePetPack(current);
+      log("local save restored inventory",
+        current.petPackInfo.packArray.length,
+        current.petStorageInfo.petArray.length,
+        Object.keys(current.itemPackInfo&&current.itemPackInfo.idMap||{}).length);
       return current;
     }
     var u=new rp.UserDataInfo(), b=new rp.UserBaseInfo(), old=saved.userInfo&&saved.userInfo.baseInfo||{};
@@ -688,13 +692,38 @@ HOOK = r"""
     u.baseInfo=b;
     u.extInfo=new rp.UserExtInfo();
     u.extInfo.newGuildInfo=new rp.NewGuildInfo();u.extInfo.newGuildInfo.version=0;u.extInfo.newGuildInfo.steps={};
-    u.itemPackInfo=new rp.ItemPackInfo();u.petPackInfo=new rp.PetPackInfo();u.petStorageInfo=new rp.PetStorageInfo();
-    var prior=saved.petPackInfo&&saved.petPackInfo.packArray&&saved.petPackInfo.packArray[0]&&saved.petPackInfo.packArray[0].pet;
-    var p=petFrom(prior),packs=[];for(var i=0;i<18;i++){var n=new rp.PackNode();n.index=i+1;n.state=i===0?1:0;n.equip=[];if(i===0){n.pet=p;n.combatPos=1;}packs.push(n);}
-    u.petPackInfo.packArray=packs;u.petStorageInfo.petArray=[p];u.petStorageInfo.sidGenerator=100002;
+    u.itemPackInfo=new rp.ItemPackInfo();u.itemPackInfo.idMap={};
+    u.petPackInfo=new rp.PetPackInfo();u.petStorageInfo=new rp.PetStorageInfo();
+    var savedPack=saved.petPackInfo&&saved.petPackInfo.packArray||[];
+    var prior=savedPack[0]&&savedPack[0].pet;
+    var p=petFrom(prior),packs=[];
+    for(var i=0;i<18;i++){
+      var source=savedPack[i]||null,n=new rp.PackNode();
+      if(source)Object.keys(source).forEach(function(k){n[k]=source[k];});
+      n.index=i+1;n.equip=Array.isArray(n.equip)?n.equip:[];
+      n.pet=source&&source.pet?petFrom(source.pet):null;
+      if(i===0&&!n.pet)n.pet=p;
+      n.state=n.pet?1:0;
+      n.combatPos=n.pet?(Number(source&&source.combatPos)||((i%6)+1)):0;
+      packs.push(n);
+    }
+    u.petPackInfo.packArray=packs;
+    var storedPets=saved.petStorageInfo&&saved.petStorageInfo.petArray;
+    u.petStorageInfo.petArray=Array.isArray(storedPets)&&storedPets.length?storedPets.map(function(x){return petFrom(x);}):[p];
+    u.petStorageInfo.sidGenerator=Number(saved.petStorageInfo&&saved.petStorageInfo.sidGenerator)||100002;
+    var storedItems=saved.itemPackInfo&&saved.itemPackInfo.idMap||{};
+    Object.keys(storedItems).forEach(function(id){
+      var raw=storedItems[id]||{},item=new rp.ItemBase();
+      Object.keys(raw).forEach(function(k){item[k]=raw[k];});
+      item.id=Number(item.id)||Number(id);item.count=Math.max(0,Number(item.count)||0);
+      u.itemPackInfo.idMap[id]=item;
+    });
     u.sceneBagInfo=new rp.SceneBagInfo();u.sceneBagInfo.sceneBag=new rp.SceneStorageBag();u.sceneBagInfo.limitInfo=new rp.SceneLimitInfo();
     u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
-    u.newSceneGradeInfo=new rp.NewSceneGradeInfo();u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
+    u.newSceneGradeInfo=new rp.NewSceneGradeInfo();
+    var savedGrade=saved.newSceneGradeInfo||{};
+    u.newSceneGradeInfo.sceneLevel=Math.max(1,Number(savedGrade.sceneLevel)||Number(old.sceneLevel)||1);
+    u.newSceneGradeInfo.sceneMapId=Number(savedGrade.sceneMapId)||1;
     u.growthFound=new rp.GrowthFound();
     u.collectCardInfo=new rp.CardCollectInfo();u.collectCardInfo.nowSeason=currentCardSeason();
     if(!GC.G().CARD_COLLECT_SEASON_CONF.getDes(u.collectCardInfo.nowSeason))u.collectCardInfo.nowSeason=19;
@@ -728,20 +757,61 @@ HOOK = r"""
     if(!u.guideScheduleInfo.riseStepByStep)u.guideScheduleInfo.riseStepByStep=new rp.GuideActive();
     u.guideScheduleInfo.riseStepByStep.isFinish=1;
     normalizeGuideSchedule(u);normalizePetPack(u);
+    log("local JSON fallback restored inventory",
+      u.petPackInfo.packArray.length,u.petStorageInfo.petArray.length,
+      Object.keys(u.itemPackInfo&&u.itemPackInfo.idMap||{}).length,
+      Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel||1));
     return u;
   }
+  function jsonSaveCopy(value){
+    if(value==null)return value;
+    try{return JSON.parse(JSON.stringify(value));}
+    catch(e){log("JSON fallback clone error",e);return null;}
+  }
   function save(){
-    try{var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);if(!u||!u.baseInfo)return;
-      var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet,m=u.baseInfo.moneyInfo;
-      var x={version:4,quickCombatUsed:quickCombatUsed,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,
-        newPointItemMap:u.baseInfo.newPointItemMap||{},
-        moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},
-        petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp,hp:String(p.hp||0),attack:String(p.attack||0),defense:String(p.defense||0),fightScore:String(p.fightScore||0),starLevel:p.starLevel,insight:p.insight,washHp:p.washHp,washAttack:p.washAttack,washDefense:p.washDefense}:null}]}};
-      try{var bytes=rp.UserDataInfo.encode(u).finish(),binary="";for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);x.proto=btoa(binary);}
-      catch(protoError){log("protobuf save fallback",protoError);}
-      var persisted={version:x.version,quickCombatUsed:quickCombatUsed,userInfo:x.userInfo,petPackInfo:x.petPackInfo};if(x.proto)persisted.proto=x.proto;
-      localStorage.setItem(KEY,JSON.stringify(persisted));x.restored=u;saved=x;
-    }catch(e){log("save error",e);}
+    try{
+      var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+      if(!u||!u.baseInfo)return;
+      var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet;
+      var m=u.baseInfo.moneyInfo||new rp.MoneyInfo();
+      var packSnapshot=jsonSaveCopy(u.petPackInfo);
+      if(!packSnapshot)packSnapshot={packArray:[{index:1,state:1,combatPos:1,equip:[],pet:jsonSaveCopy(p)}]};
+      var storageSnapshot=jsonSaveCopy(u.petStorageInfo);
+      if(!storageSnapshot)storageSnapshot={sidGenerator:100002,petArray:p?[jsonSaveCopy(p)]:[]};
+      var itemSnapshot=jsonSaveCopy(u.itemPackInfo)||{idMap:{}};
+      var gradeSnapshot=jsonSaveCopy(u.newSceneGradeInfo)||{
+        sceneLevel:Number(u.baseInfo.sceneLevel)||1,sceneMapId:1
+      };
+      var x={
+        version:5,quickCombatUsed:quickCombatUsed,
+        userInfo:{baseInfo:{
+          userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,
+          level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,
+          avatarId:u.baseInfo.avatarId,newPointItemMap:u.baseInfo.newPointItemMap||{},
+          moneyInfo:{
+            gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,
+            petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),
+            warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),
+            rankGameScore:m.rankGameScore||0
+          }
+        }},
+        petPackInfo:packSnapshot,petStorageInfo:storageSnapshot,
+        itemPackInfo:itemSnapshot,newSceneGradeInfo:gradeSnapshot
+      };
+      try{
+        var bytes=rp.UserDataInfo.encode(u).finish(),binary="";
+        for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);
+        x.proto=btoa(binary);
+      }catch(protoError){log("protobuf save fallback",protoError);}
+      var persisted={
+        version:x.version,quickCombatUsed:quickCombatUsed,userInfo:x.userInfo,
+        petPackInfo:x.petPackInfo,petStorageInfo:x.petStorageInfo,
+        itemPackInfo:x.itemPackInfo,newSceneGradeInfo:x.newSceneGradeInfo
+      };
+      if(x.proto)persisted.proto=x.proto;
+      localStorage.setItem(KEY,JSON.stringify(persisted));
+      x.restored=u;saved=x;
+    }catch(e){log("save error",e&&e.stack||e);}
   }
   function bots(){
     return ["【模拟】小星","【模拟】阿风","【模拟】皮皮","【模拟】训练员07","【模拟】小羽","【模拟】阿光"].map(function(n,i){

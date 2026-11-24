@@ -216,6 +216,18 @@ jobs:
             --out dist/super-spirit-ball-offline.apk tmp/offline-build/aligned.apk
           "$BT/apksigner" verify --verbose dist/super-spirit-ball-offline.apk
           sha256sum dist/super-spirit-ball-offline.apk | tee dist/SHA256SUMS.txt
+          APK_SHA256="$(sha256sum dist/super-spirit-ball-offline.apk | awk '{print $1}')"
+          cat > dist/README.md <<EOF
+          # Super Spirit Ball — offline APK
+
+          - Build/test run: [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
+          - File: `super-spirit-ball-offline.apk`
+          - SHA-256: `${APK_SHA256}`
+          - Validation: check the linked workflow for `OFFLINE_SCENE_TEST=PASS`.
+
+          This APK uses a local test signing key and is not signed with the original publisher key.
+          Uninstall the original app before installing this build; uninstalling may remove its app data.
+          EOF
           ls -lh dist/super-spirit-ball-offline.apk
 
       - name: Install and launch with network disabled
