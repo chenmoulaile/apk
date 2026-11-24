@@ -212,5 +212,6 @@ jobs:
             dist/
             tmp/offline-test/
             tmp/offline-build/native-network-dialog-patch.txt
+            tmp/offline-build/snapshot-manifest.json
           if-no-files-found: warn
           retention-days: 30
