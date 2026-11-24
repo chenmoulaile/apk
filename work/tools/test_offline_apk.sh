@@ -111,9 +111,9 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local pet growup 0 1->2 hp 14300 attack 2420 defense 1320 score 53130" tmp/offline-test/logcat.txt \
   && grep -q "local scene reward actions 103:4000002,1|103:1001019,10|100:200|101:20000" tmp/offline-test/logcat.txt \
   && grep -q "local point item reward 59 1000 1000" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored 1099500 6" tmp/offline-test/logcat.txt \\
+  && grep -q "local save restored 1099500 6" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet 2 14300 2420 1320" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored points 19000 4000" tmp/offline-test/logcat.txt \\
+  && grep -q "local save restored points 19000 4000" tmp/offline-test/logcat.txt \
   && grep -q "local pet storage loaded 1 18" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
@@ -126,13 +126,13 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local combat simulation stage 2 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 1 -> 2" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 2 -> 3" tmp/offline-test/logcat.txt \
-  && grep -q "local NewSceneGradeFightRsp 3 -> 4" tmp/offline-test/logcat.txt \\
+  && grep -q "local NewSceneGradeFightRsp 3 -> 4" tmp/offline-test/logcat.txt \
   && grep -q "local combat simulation stage 5 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 4 -> 5" tmp/offline-test/logcat.txt \
   && grep -q "local combat simulation stage 6 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 5 -> 6" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored 1099500 6" tmp/offline-test/logcat.txt \\
+  && grep -q "local save restored 1099500 6" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/NewBag.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ZPower.atlas" tmp/offline-test/logcat.txt \
