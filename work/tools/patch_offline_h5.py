@@ -80,7 +80,8 @@ HOOK = r"""
   function addLocalGold(amount){
     try{
       var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
-      if(!u||!u.baseInfo||!u.baseInfo.moneyInfo)return;
+      if(!u||!u.baseInfo)return;
+      if(!u.baseInfo.moneyInfo)u.baseInfo.moneyInfo=new rp.MoneyInfo();
       var m=u.baseInfo.moneyInfo;m.gold=long(Number(m.gold||0)+Number(amount||0));
       log("local gold reward",amount,String(m.gold));save();
     }catch(e){log("local gold update",e&&e.stack||e);}
@@ -106,7 +107,7 @@ HOOK = r"""
     var data=new rp.OneCombatData();data.type=rp.CombatType.PVE;data.result=rp.CombatResult.WIN;
     data.players=[
       combatPlayer(u&&u.baseInfo&&u.baseInfo.userId||UID,u&&u.baseInfo&&u.baseInfo.name||NAME,myPetId,myLevel),
-      combatPlayer(920000+Number(stage||1),"离线训练对手",3109,1)
+      combatPlayer(0,"离线训练对手",3108,1)
     ];
     var begin=new rp.CombatOneStep();begin.doWhat=rp.CombatStepType.START;begin.round=1;begin.source=0;
     var finish=new rp.CombatOneStep();finish.doWhat=rp.CombatStepType.END;finish.round=1;finish.source=0;
@@ -115,6 +116,7 @@ HOOK = r"""
   }
   function makeOfflineSceneFight(req){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(u)current=u;
     var oldLevel=u&&u.newSceneGradeInfo&&Number(u.newSceneGradeInfo.sceneLevel)||1;
     var nextLevel=oldLevel+1;
     var cfg=GC.G().NEW_SCENE_GRADE_CONF.getDes(nextLevel);
@@ -126,8 +128,16 @@ HOOK = r"""
     result.fightData=[makeOfflineCombat(nextLevel)];rsp.fightInfo=[result];
     rsp.actionArr=(cfg&&cfg.actionArr||[]).map(function(a){return new rp.Action(a);});
     if(!rsp.actionArr.length)rsp.actionArr=[offlineAction(rp.Action.ActionTye.ADD_GOLD,[10000])];
-    var gold=0;rsp.actionArr.forEach(function(a){if(a.type===rp.Action.ActionTye.ADD_GOLD)gold+=Number(a.params&&a.params[0]||0);});
-    if(gold>0)addLocalGold(gold);
+    var gold=0;
+    rsp.actionArr.forEach(function(a){
+      if(Number(a.type)===Number(rp.Action.ActionTye.ADD_GOLD))gold+=Number(a.params&&a.params[0]||0);
+    });
+    if(gold<=0){
+      gold=10000;
+      rsp.actionArr.push(offlineAction(rp.Action.ActionTye.ADD_GOLD,[gold]));
+    }
+    log("local scene reward actions",rsp.actionArr.map(function(a){return String(a.type)+":"+(a.params||[]).join(",");}).join("|"));
+    addLocalGold(gold);
     if(u&&u.newSceneGradeInfo){u.newSceneGradeInfo.sceneLevel=nextLevel;u.newSceneGradeInfo.sceneMapId=rsp.sceneMapId;}
     save();log("local NewSceneGradeFightRsp",oldLevel,"->",nextLevel,"fightCount",result.fightData.length);
     return rsp;

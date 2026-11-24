@@ -66,7 +66,7 @@ CORE_FILES = [
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
-    r"[A-Za-z0-9_./-]+\.(?:atlas|json|png|jpg|jpeg|webp|mp3|wav|ttf|fnt|sk|zip))",
+    r"[A-Za-z0-9_./-]+\.(?:atlas|json|png|jpg|jpeg|webp|ani|mp3|wav|ttf|fnt|sk|zip))",
     re.IGNORECASE,
 )
 
@@ -268,15 +268,21 @@ def main() -> int:
                 parsed = json.loads(text_config)
                 image_suffixes = {".png", ".jpg", ".jpeg", ".webp"}
                 ui_skin_refs: set[str] = set()
+                combat_animation_refs: set[str] = set()
 
                 def walk(value: object) -> None:
                     if isinstance(value, str):
                         queue.update(path_candidates(value))
-                        # Laya UI JSON stores many skins relative to atlas/,
-                        # e.g. Checkpoint/offLineGiftPanel/bg_gjsy.png.
                         normalized = value.strip().lstrip("/")
                         candidate = PurePosixPath(normalized)
+                        # These clips are relative to atlas/, not res/.
                         if (
+                            candidate.suffix.lower() == ".ani"
+                            and normalized.lower().startswith("combat/animation/")
+                            and ".." not in candidate.parts
+                        ):
+                            combat_animation_refs.add("atlas/" + normalized)
+                        elif (
                             "/" in normalized
                             and candidate.suffix.lower() in image_suffixes
                             and not normalized.startswith(("atlas/", "res/", "scene/", "http://", "https://"))
@@ -294,7 +300,52 @@ def main() -> int:
 
                 walk(parsed)
                 queue.update(ui_skin_refs)
+                queue.update(combat_animation_refs)
                 manifest["ui_skin_asset_candidates"] = len(ui_skin_refs)
+                manifest["combat_animation_asset_candidates"] = len(combat_animation_refs)
+
+                # Main PvE panels build item and point-icon URLs from ids.
+                point_item_ids = {3, 4, 56, 59}
+                main_scene_item_refs: set[str] = set()
+                for stage in parsed.get("cdc_new_scene_grade_conf", []):
+                    if not isinstance(stage, dict) or int(stage.get("id", 0) or 0) > 10:
+                        continue
+                    for action in stage.get("actionArr", []):
+                        if not isinstance(action, dict):
+                            continue
+                        params = action.get("params", [])
+                        if not isinstance(params, list) or not params:
+                            continue
+                        action_type = int(action.get("type", 0) or 0)
+                        item_id = int(params[0] or 0)
+                        if action_type == 100:
+                            point_item_ids.add(4)
+                        elif action_type == 101:
+                            point_item_ids.add(3)
+                        elif action_type == 102:
+                            point_item_ids.add(2)
+                        elif action_type == 109:
+                            point_item_ids.add(item_id)
+                        elif action_type == 103 and item_id > 0:
+                            if 1000350 <= item_id <= 1000385:
+                                main_scene_item_refs.add("res/items/1/1000350.png")
+                            elif item_id // 1000000 == 5:
+                                pet = pet_by_id.get(item_id % 100000)
+                                if pet and pet.get("spiritIcon"):
+                                    queue.add("res/icons/" + str(pet["spiritIcon"]))
+                            else:
+                                main_scene_item_refs.add(f"res/items/{item_id // 1000000}/{item_id}.png")
+                for point_item in parsed.get("cdc_point_item_conf", []):
+                    if not isinstance(point_item, dict) or int(point_item.get("id", 0) or 0) not in point_item_ids:
+                        continue
+                    for field in ("smallIcon", "bigIcon"):
+                        icon = point_item.get(field)
+                        if isinstance(icon, str) and icon and "/" not in icon and ".." not in icon:
+                            queue.add(f"res/icons/{icon}.png")
+                queue.update(main_scene_item_refs)
+                manifest["main_scene_item_asset_candidates"] = len(main_scene_item_refs)
+                manifest["main_scene_point_icon_ids"] = sorted(point_item_ids)
+
                 # Battle sprites and skill effects are looked up dynamically from
                 # the config tables and cannot be discovered by scanning code.js.
                 pet_rows = parsed.get("cdc_pet_conf", [])
@@ -308,7 +359,7 @@ def main() -> int:
                     for row in parsed.get("cdc_pve_pet_conf", [])
                     if isinstance(row, dict) and str(row.get("id", "")).isdigit()
                 }
-                combat_pet_ids = {3101}
+                combat_pet_ids = {3101, 3108}
                 for team in parsed.get("cdc_pve_team_conf", []):
                     if not isinstance(team, dict):
                         continue
@@ -332,6 +383,9 @@ def main() -> int:
                     image_path = PurePosixPath(image)
                     if not image_path.is_absolute() and ".." not in image_path.parts:
                         combat_sprite_refs.add(str(PurePosixPath("res/combat/spirits") / image_path))
+                    icon = pet.get("spiritIcon")
+                    if isinstance(icon, str) and icon and "/" not in icon and ".." not in icon:
+                        queue.add(f"res/icons/{icon}")
                 combat_effect_refs = set()
                 for effect in parsed.get("cdc_effect_conf", []):
                     if not isinstance(effect, dict):
