@@ -6,6 +6,7 @@ on:
     paths:
       - ".github/workflows/offline-build.yml"
       - "work/tools/patch_offline_h5.py"
+      - "work/tools/patch_android.py"
       - "work/recovered/h5_snapshot.py"
       - "work/tools/test_offline_apk.sh"
       - "com.ruirui.cjjlq.apk"
@@ -76,6 +77,7 @@ jobs:
         shell: bash
         run: |
           apktool d -f com.ruirui.cjjlq.apk -o tmp/offline-build/decoded
+          python3 work/tools/patch_android.py tmp/offline-build/decoded
           python3 - <<'PY'
           from pathlib import Path
           root = Path("tmp/offline-build/decoded")

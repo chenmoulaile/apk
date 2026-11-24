@@ -36,9 +36,12 @@ timeout 30s adb logcat -d -v threadtime > tmp/offline-test/logcat.txt
   grep -iE "ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|UnknownHost|网络不可用" tmp/offline-test/logcat.txt | tail -n 200 || true
 } > tmp/offline-test/SUMMARY.txt
 cat tmp/offline-test/SUMMARY.txt
-if grep -q "local LoginRsp" tmp/offline-test/logcat.txt && grep -q "EnterSceneRsp" tmp/offline-test/logcat.txt; then
+if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
+  && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
+  && ! grep -q "Uncaught TypeError" tmp/offline-test/logcat.txt \
+  && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
-echo "OFFLINE_SCENE_TEST=FAIL (LoginRsp/EnterSceneRsp markers missing)" | tee -a tmp/offline-test/SUMMARY.txt
+echo "OFFLINE_SCENE_TEST=FAIL (scene response missing, JS exception, or native network dialog remains)" | tee -a tmp/offline-test/SUMMARY.txt
 exit 1
