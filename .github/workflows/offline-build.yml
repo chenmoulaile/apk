@@ -68,6 +68,7 @@ jobs:
             unzip -q tmp/offline-build/h5-archive/recovered-h5-client.zip \
               -d tmp/offline-build/h5-archive/extracted
             test -s tmp/offline-build/h5-archive/extracted/client/code.js
+            mkdir -p tmp/offline-build/game
             cp -a tmp/offline-build/h5-archive/extracted/client/. tmp/offline-build/game/
             cp -f tmp/offline-build/h5-archive/extracted/snapshot-manifest.json \
               tmp/offline-build/snapshot-manifest.json
