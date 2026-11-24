@@ -135,8 +135,8 @@ jobs:
           network_checks = []
           for path in root.rglob("*.smali"):
               text = path.read_text(encoding="utf-8", errors="replace")
-              pattern = re.compile(r"(?ms)^(\\.method[^\\n]*\\bcheckNetOk\\(\\)Z[^\\n]*\\n).*?^\\.end method")
-              updated, count = pattern.subn(r"\\1    .locals 1\\n    const/4 v0, 0x1\\n    return v0\\n.end method", text)
+              pattern = re.compile(r"(?ms)^(\.method[^\n]*\bcheckNetOk\(\)Z[^\n]*\n).*?^\.end method")
+              updated, count = pattern.subn(r"\1    .locals 1\n    const/4 v0, 0x1\n    return v0\n.end method", text)
               if count:
                   path.write_text(updated, encoding="utf-8")
                   network_checks.append(str(path))
