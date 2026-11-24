@@ -78,7 +78,7 @@ cat tmp/offline-test/SUMMARY.txt
 BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|\\[Offline\\] unhandledrejection (TypeError|ReferenceError|NotSupportedError)'
 # Fail on every uncaught JavaScript exception, including early native callback races.
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
-if grep -q "local pet storage loaded 1 36" tmp/offline-test/logcat.txt \
+if grep -q "local pet storage loaded 1 18" tmp/offline-test/logcat.txt \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
   && grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \

@@ -129,8 +129,9 @@ HOOK = r"""
     if(!Array.isArray(packs))packs=[];
     var first=packs[0]&&packs[0].pet;
     if(!first||!first.id)first=petFrom(null);
-    // Six formations, six positions per formation. Preserve every decoded slot.
-    for(var i=0;i<36;i++){
+    // The original client supports three formations with six positions each.
+    // Its DataManager setter rebuilds exactly 18 slots.
+    for(var i=0;i<18;i++){
       var node=packs[i];
       if(!node){node=new rp.PackNode();node.state=0;node.equip=[];node.combatPos=0;}
       if(!node.equip)node.equip=[];
@@ -140,7 +141,7 @@ HOOK = r"""
       if(i===0&&(!node.pet||!node.pet.id)){node.pet=first;node.state=1;node.combatPos=1;}
       packs[i]=node;
     }
-    packs.length=36;
+    packs.length=18;
     u.petPackInfo.packArray=packs;
     if(!u.petStorageInfo)u.petStorageInfo=new rp.PetStorageInfo();
     if(!Array.isArray(u.petStorageInfo.petArray))u.petStorageInfo.petArray=[];
@@ -191,20 +192,20 @@ HOOK = r"""
     current=u;var packs=normalizePetPack(u),a,b;
     if(kind==="formationChange"){
       a=offlinePackSlot(req&&req.index);b=Number(req&&req.pos);
-      if(a<0||a>=36||b<1||b>6||!packs[a]||!packs[a].pet){r.ret=1;return r;}
+      if(a<0||a>=18||b<1||b>6||!packs[a]||!packs[a].pet){r.ret=1;return r;}
       var row=Math.floor(a/6)*6;
       for(var i=row;i<row+6;i++)if(i!==a&&packs[i]&&Number(packs[i].combatPos)===b)packs[i].combatPos=0;
       packs[a].combatPos=b;
     }else if(kind==="packSwap"){
       a=offlinePackSlot(req&&req.petIndex1);b=offlinePackSlot(req&&req.petIndex2);
-      if(a<0||a>=36||b<0||b>=36){r.ret=1;return r;}
+      if(a<0||a>=18||b<0||b>=18){r.ret=1;return r;}
       var left=packs[a],right=packs[b];
       ["state","pet","equip","combatPos","artifact","indexFateMap","pvePetId"].forEach(function(k){var v=left[k];left[k]=right[k];right[k]=v;});
       left.index=a+1;right.index=b+1;
     }else if(kind==="formationSwap"){
       a=Number(req&&req.formationIndex1);b=Number(req&&req.formationIndex2);
       if(a>5)a--;if(b>5)b--;
-      if(a<0||a>5||b<0||b>5){r.ret=1;return r;}
+      if(a<0||a>2||b<0||b>2){r.ret=1;return r;}
       for(var j=0;j<6;j++){
         var ia=a*6+j,ib=b*6+j,one=packs[ia],two=packs[ib];
         ["state","pet","equip","combatPos","artifact","indexFateMap","pvePetId"].forEach(function(k){var v=one[k];one[k]=two[k];two[k]=v;});
@@ -213,11 +214,11 @@ HOOK = r"""
     }else if(kind==="takePet"){
       a=offlinePackSlot(req&&req.packIndex);
       var petId=Number(req&&req.petId),pet=(u.petStorageInfo.petArray||[]).find(function(p){return p&&Number(p.genId)===petId;});
-      if(a<0||a>=36||!pet){r.ret=1;return r;}
+      if(a<0||a>=18||!pet){r.ret=1;return r;}
       packs[a].pet=petFrom(pet);packs[a].state=1;packs[a].combatPos=a%6+1;
     }else if(kind==="cleanPet"){
       a=offlinePackSlot(req&&req.index);
-      if(a<0||a>=36||!packs[a]||!packs[a].pet){r.ret=1;return r;}
+      if(a<0||a>=18||!packs[a]||!packs[a].pet){r.ret=1;return r;}
       packs[a].pet=null;packs[a].state=0;packs[a].combatPos=0;packs[a].equip=[];packs[a].artifact=null;
     }
     u.petPackInfo=new rp.PetPackInfo();u.petPackInfo.packArray=packs;
