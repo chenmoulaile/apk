@@ -306,6 +306,24 @@ def main() -> int:
             try:
                 parsed = json.loads(text_config)
                 image_suffixes = {".png", ".jpg", ".jpeg", ".webp"}
+                # These resources are assembled dynamically by the old UI and
+                # therefore do not appear as literal paths in zip.txt:
+                # Common.UpgradeLight.loadImages("upgradeLight/", 1, 9),
+                # and PetZPowerConf icon names under ZPower/<icon>.png.
+                upgrade_light_refs = {
+                    f"atlas/upgradeLight/{frame}.png" for frame in range(1, 10)
+                }
+                zpower_icon_refs = {
+                    "atlas/ZPower/" + str(row.get("icon", "")).strip() + ".png"
+                    for row in parsed.get("cdc_pet_z_power_conf", [])
+                    if isinstance(row, dict)
+                    and re.fullmatch(r"[A-Za-z0-9_-]+", str(row.get("icon", "")).strip())
+                }
+                queue.update(upgrade_light_refs)
+                queue.update(zpower_icon_refs)
+                manifest["dynamic_pet_asset_candidates"] = len(
+                    upgrade_light_refs | zpower_icon_refs
+                )
                 ui_skin_refs: set[str] = set()
                 combat_animation_refs: set[str] = set()
 
