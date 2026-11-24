@@ -53,6 +53,8 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt | grep -vF "Uncaught ReferenceError: CallbackFromAndroid is not defined" || true)
 if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
+  && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
+  && grep -q "local QuickHangupOperateRsp" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: role/1/" tmp/offline-test/logcat.txt \
@@ -65,5 +67,5 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
-echo "OFFLINE_SCENE_TEST=FAIL (scene response missing, fatal JS rejection, missing role/combat assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
+echo "OFFLINE_SCENE_TEST=FAIL (scene/login/quick battle response missing, fatal JS rejection, missing role/combat assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
 exit 1

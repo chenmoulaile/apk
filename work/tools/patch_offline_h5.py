@@ -24,6 +24,7 @@ HOOK = r"""
     }catch(e){log("save restore error",e);return null;}
   };
   var saved=read()||{}, current=null;
+  var quickCombatUsed=Number(saved.quickCombatUsed)||0;
   var long=function(v){try{if($util.Long)return $util.Long.fromString(String(v),true);}catch(e){}return Number(v)||0;};
   function currentCardSeason(){
     try{
@@ -72,6 +73,64 @@ HOOK = r"""
     if(!u.petStorageInfo.petArray.some(function(x){return x&&x.genId===first.genId;}))u.petStorageInfo.petArray.push(first);
     if(!u.petStorageInfo.sidGenerator)u.petStorageInfo.sidGenerator=100002;
     return packs;
+  }
+  function offlineAction(type,params){
+    var a=new rp.Action();a.type=type;a.params=params||[];return a;
+  }
+  function addLocalGold(amount){
+    try{
+      var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+      if(!u||!u.baseInfo||!u.baseInfo.moneyInfo)return;
+      var m=u.baseInfo.moneyInfo;m.gold=long(Number(m.gold||0)+Number(amount||0));
+      log("local gold reward",amount,String(m.gold));save();
+    }catch(e){log("local gold update",e&&e.stack||e);}
+  }
+  function combatSpirit(id,level,hp){
+    var s=new rp.CombatSpirit();
+    s.id=id||0;s.level=level||1;s.status=id?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.UNKNOW;
+    s.hp=long(id?hp||12000:0);s.fullHp=long(id?hp||12000:0);s.oldHp=id?hp||12000:0;
+    s.mp=50;s.buffMap={};return s;
+  }
+  function combatPlayer(id,name,petId,level){
+    var p=new rp.CombatPlayer();p.id=long(id);p.name=name;p.level=level||1;p.sex=2;
+    p.commuSkillId=0;p.warCmdLevel=0;p.warCmdSkill=0;p.godSkill=false;
+    p.partner=[combatSpirit(0,1,0)];p.spirits=[];
+    for(var i=0;i<6;i++)p.spirits.push(i===0?combatSpirit(petId,level,16000):combatSpirit(0,1,0));
+    return p;
+  }
+  function makeOfflineCombat(stage){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    var myPet=u&&u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet;
+    var myPetId=myPet&&myPet.id||3101;
+    var myLevel=myPet&&myPet.level||1;
+    var data=new rp.OneCombatData();data.type=rp.CombatType.PVE;data.result=rp.CombatResult.WIN;
+    data.players=[
+      combatPlayer(u&&u.baseInfo&&u.baseInfo.userId||UID,u&&u.baseInfo&&u.baseInfo.name||NAME,myPetId,myLevel),
+      combatPlayer(920000+Number(stage||1),"离线训练对手",3109,1)
+    ];
+    var begin=new rp.CombatOneStep();begin.doWhat=rp.CombatStepType.START;begin.round=1;begin.source=0;
+    var finish=new rp.CombatOneStep();finish.doWhat=rp.CombatStepType.END;finish.round=1;finish.source=0;
+    data.steps=[begin,finish];data.totalRound=1;data.time=3;data.rewards=[];
+    return data;
+  }
+  function makeOfflineSceneFight(req){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    var oldLevel=u&&u.newSceneGradeInfo&&Number(u.newSceneGradeInfo.sceneLevel)||1;
+    var nextLevel=oldLevel+1;
+    var cfg=GC.G().NEW_SCENE_GRADE_CONF.getDes(nextLevel);
+    if(!cfg){nextLevel=1;cfg=GC.G().NEW_SCENE_GRADE_CONF.getDes(nextLevel);}
+    var rsp=new rp.NewSceneGradeFightRsp();rsp.ret=0;rsp.sceneLevel=nextLevel;
+    rsp.sceneMapId=cfg&&cfg.sceneId||1;rsp.quickFightTimes=0;rsp.freeTimes=1;
+    rsp.level=cfg&&cfg.level||1;rsp.nextLevelExp=long(0);
+    var result=new rp.NewSceneResultInfo();result.sceneLevel=nextLevel;
+    result.fightData=[makeOfflineCombat(nextLevel)];rsp.fightInfo=[result];
+    rsp.actionArr=(cfg&&cfg.actionArr||[]).map(function(a){return new rp.Action(a);});
+    if(!rsp.actionArr.length)rsp.actionArr=[offlineAction(rp.Action.ActionTye.ADD_GOLD,[10000])];
+    var gold=0;rsp.actionArr.forEach(function(a){if(a.type===rp.Action.ActionTye.ADD_GOLD)gold+=Number(a.params&&a.params[0]||0);});
+    if(gold>0)addLocalGold(gold);
+    if(u&&u.newSceneGradeInfo){u.newSceneGradeInfo.sceneLevel=nextLevel;u.newSceneGradeInfo.sceneMapId=rsp.sceneMapId;}
+    save();log("local NewSceneGradeFightRsp",oldLevel,"->",nextLevel,"fightCount",result.fightData.length);
+    return rsp;
   }
   function userInfo(){
     if(saved.restored&&saved.restored.baseInfo){
@@ -143,10 +202,10 @@ HOOK = r"""
   function save(){
     try{var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);if(!u||!u.baseInfo)return;
       var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet,m=u.baseInfo.moneyInfo;
-      var x={version:2,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp}:null}]}};
+      var x={version:3,quickCombatUsed:quickCombatUsed,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp}:null}]}};
       try{var bytes=rp.UserDataInfo.encode(u).finish(),binary="";for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);x.proto=btoa(binary);}
       catch(protoError){log("protobuf save fallback",protoError);}
-      var persisted={version:x.version,userInfo:x.userInfo,petPackInfo:x.petPackInfo};if(x.proto)persisted.proto=x.proto;
+      var persisted={version:x.version,quickCombatUsed:quickCombatUsed,userInfo:x.userInfo,petPackInfo:x.petPackInfo};if(x.proto)persisted.proto=x.proto;
       localStorage.setItem(KEY,JSON.stringify(persisted));x.restored=u;saved=x;
     }catch(e){log("save error",e);}
   }
@@ -196,6 +255,18 @@ HOOK = r"""
         r.openSvrDays=20;r.openSvrTime=Math.floor(Date.now()/1000)-20*86400;r.mergeSvrDays=0;r.mergeSvrTime=0;r.loginNotice={title:"",nickName:"",content:"",name:"",date:""};log("local LoginRsp");}
       else if(Resp===rp.HeartBeatRsp){r.ret=0;r.serverMtime=long(Date.now());log("local heartbeat");}
       else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
+      else if(Resp===rp.NewSceneGradeFightRsp){
+        r=makeOfflineSceneFight(req);
+      }
+      else if(Resp===rp.QuickHangupOperateRsp){
+        var usedBefore=quickCombatUsed,operate=Number(req&&req.operate||0);
+        if(operate>0&&quickCombatUsed<1){quickCombatUsed++;addLocalGold(10000);}
+        r.ret=0;r.todayUseCount=quickCombatUsed;r.maxDayUseCount=1;
+        r.todayBuyCount=0;r.maxDayBuyCount=0;
+        r.awards=[offlineAction(rp.Action.ActionTye.ADD_GOLD,[10000])];
+        if(usedBefore!==quickCombatUsed)save();
+        log("local QuickHangupOperateRsp",operate,"used",quickCombatUsed);
+      }
       if(cb)setTimeout(function(){try{cb.call(ctx||null,r);}catch(e){log("response callback",e&&e.stack||e);}},0);
       return Promise.resolve(r);
     };

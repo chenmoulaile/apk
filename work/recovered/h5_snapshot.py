@@ -253,15 +253,22 @@ def main() -> int:
                     for row in pet_rows
                     if isinstance(row, dict) and str(row.get("id", "")).isdigit()
                 }
+                pve_pet_by_id = {
+                    int(row.get("id", 0)): row
+                    for row in parsed.get("cdc_pve_pet_conf", [])
+                    if isinstance(row, dict) and str(row.get("id", "")).isdigit()
+                }
                 combat_pet_ids = {3101}
                 for team in parsed.get("cdc_pve_team_conf", []):
                     if not isinstance(team, dict):
                         continue
                     pet_ids = team.get("petId", [])
                     if isinstance(pet_ids, list):
-                        for pet_id in pet_ids:
+                        for pve_pet_id in pet_ids:
                             try:
-                                combat_pet_ids.add(int(pet_id))
+                                pve_pet = pve_pet_by_id.get(int(pve_pet_id))
+                                if pve_pet and pve_pet.get("petId"):
+                                    combat_pet_ids.add(int(pve_pet["petId"]))
                             except (TypeError, ValueError):
                                 pass
                 combat_sprite_refs = set()
