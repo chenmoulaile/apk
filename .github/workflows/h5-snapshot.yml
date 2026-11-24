@@ -67,17 +67,8 @@ jobs:
           This is the recovered original client, not yet an offline-patched build.
           EOF
 
-      - name: Commit recovery manifest
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add work/recovered/README.md work/recovered/snapshot-manifest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "archive: record recovered H5 client resource manifest"
-            git push origin HEAD:main
-          fi
-
+      # The manifest is kept in the workflow artifact/release. Avoid racing
+      # the APK build workflow by pushing generated commits from this job.
       - name: Publish recovered H5 source bundle
         if: success()
         env:
