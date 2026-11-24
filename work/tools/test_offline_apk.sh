@@ -36,7 +36,7 @@ timeout 30s adb logcat -d -v threadtime > tmp/offline-test/logcat.txt
   grep -iE "ERR_INTERNET_DISCONNECTED|ERR_NAME_NOT_RESOLVED|UnknownHost|网络不可用" tmp/offline-test/logcat.txt | tail -n 200 || true
 } > tmp/offline-test/SUMMARY.txt
 cat tmp/offline-test/SUMMARY.txt
-BAD_JS='Uncaught( \\(in promise\\))? (TypeError|ReferenceError|NotSupportedError)|\\[Offline\\] unhandledrejection (TypeError|ReferenceError|NotSupportedError)'
+BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|\[Offline\] unhandledrejection (TypeError|ReferenceError|NotSupportedError)'
 if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && ! grep -Eq "$BAD_JS" tmp/offline-test/logcat.txt \
