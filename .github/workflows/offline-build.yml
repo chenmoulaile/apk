@@ -100,6 +100,19 @@ jobs:
           missing = [x for x in required if not (assets / x).is_file()]
           if missing:
               raise SystemExit("missing packaged H5 files: " + ", ".join(missing))
+          required_runtime_assets = [
+              "atlas/combat/animation0.atlas",
+              "atlas/combat/animation0.png",
+              "atlas/combat/frmBattle.atlas",
+              "atlas/combat/frmBattle.png",
+              "atlas/mainUI/laba02_bg.png",
+              "atlas/Checkpoint/offLineGiftPanel/bg_gjsy.png",
+              "atlas/Checkpoint/offLineGiftPanel/btn.png",
+          ]
+          missing_runtime = [name for name in required_runtime_assets if not (assets / name).is_file()]
+          if missing_runtime:
+              raise SystemExit("missing runtime assets: " + ", ".join(missing_runtime))
+          print("Verified runtime assets:", *required_runtime_assets, sep="\\n  ")
           print("Packaged local H5 bytes:", sum(p.stat().st_size for p in assets.rglob("*") if p.is_file()))
           PY
 
