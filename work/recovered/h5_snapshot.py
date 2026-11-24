@@ -57,10 +57,17 @@ CORE_FILES = [
     "atlas/mainUI/laba02_bg.png",
     # Dynamic UI groups normally fall back to these atlas bundles at runtime.
     "atlas/Checkpoint/MainChallenge.atlas",
-    "atlas/Checkpoint/Result.atlas",
-    "atlas/Checkpoint/QuickCombat.atlas",
+    "atlas/Checkpoint/OffLineGiftPanel.atlas",
     "atlas/Checkpoint/offLineGiftPanel.atlas",
-    "atlas/CombatFormation.atlas",
+    "atlas/Checkpoint/QuickCombat.atlas",
+    "atlas/Checkpoint/QuickChallengeEnd.atlas",
+    "atlas/Checkpoint/Result.atlas",
+    "atlas/Checkpoint/ResultItem.atlas",
+    "atlas/CombatFormation/Main.atlas",
+    "atlas/combat/CombatMain.atlas",
+    "atlas/combat/CombatWinOrigin.atlas",
+    "atlas/combat/CombatWinOrigin1.atlas",
+    "atlas/combat/CombatLoseOrigin.atlas",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
