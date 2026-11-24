@@ -56,29 +56,44 @@ jobs:
           sudo chmod +x /usr/local/bin/apktool
           apktool --version
 
-      - name: Download original game H5 client and resources
+      - name: Restore original game H5 client and resources
         shell: bash
         run: |
           mkdir -p tmp/offline-build dist
-          if ! python3 work/recovered/h5_snapshot.py \
-            --output tmp/offline-build/game \
-            --max-total-mib 700 \
-            --workers 16 | tee tmp/offline-build/snapshot-summary.json; then
-            echo "Live H5 snapshot failed; restoring the archived original H5 source bundle."
-            mkdir -p tmp/offline-build/cache-release
-            GH_TOKEN="${{ github.token }}" gh release download h5-source-20261123 \
-              --repo "${{ github.repository }}" \
-              --pattern recovered-h5-client.zip \
-              --dir tmp/offline-build/cache-release
-            CACHED_H5="tmp/offline-build/cache-release/recovered-h5-client.zip"
-            test -s "$CACHED_H5"
-            unzip -tq "$CACHED_H5" >/dev/null
-            mkdir -p tmp/offline-build/cache-source
-            unzip -q "$CACHED_H5" 'client/*' -d tmp/offline-build/cache-source
-            test -s tmp/offline-build/cache-source/client/code.js
-            mkdir -p tmp/offline-build/game
-            cp -a tmp/offline-build/cache-source/client/. tmp/offline-build/game/
-            echo "Restored cached H5 assets from Release h5-source-20261123."
+          if GH_TOKEN="${{ github.token }}" gh release download h5-source-20261123 \
+            --repo "${{ github.repository }}" \
+            --pattern recovered-h5-client.zip \
+            --dir tmp/offline-build/h5-archive; then
+            echo "Using the archived original H5 source bundle."
+            unzip -q tmp/offline-build/h5-archive/recovered-h5-client.zip \
+              -d tmp/offline-build/h5-archive/extracted
+            test -s tmp/offline-build/h5-archive/extracted/client/code.js
+            cp -a tmp/offline-build/h5-archive/extracted/client/. tmp/offline-build/game/
+            cp -f tmp/offline-build/h5-archive/extracted/snapshot-manifest.json \
+              tmp/offline-build/snapshot-manifest.json
+            echo "Restored $(find tmp/offline-build/game -type f | wc -l) archived H5 files."
+          else
+            echo "Archived H5 bundle unavailable; trying a live snapshot."
+            if ! python3 work/recovered/h5_snapshot.py \
+              --output tmp/offline-build/game \
+              --max-total-mib 700 \
+              --workers 16 | tee tmp/offline-build/snapshot-summary.json; then
+              echo "Live H5 snapshot failed; falling back to the real APK artifact #92."
+              mkdir -p tmp/offline-build/cache-artifact tmp/offline-build/cache-apk
+              GH_TOKEN="${{ github.token }}" gh run download 45383112667 \
+                --repo "${{ github.repository }}" \
+                --name offline-apk-test-92 \
+                --dir tmp/offline-build/cache-artifact
+              CACHED_APK="$(find tmp/offline-build/cache-artifact -type f \
+                -name 'super-spirit-ball-offline.apk' -print -quit)"
+              test -n "$CACHED_APK"
+              unzip -tq "$CACHED_APK" >/dev/null
+              unzip -q "$CACHED_APK" 'assets/game/*' -d tmp/offline-build/cache-apk
+              test -s tmp/offline-build/cache-apk/assets/game/code.js
+              mkdir -p tmp/offline-build/game
+              cp -a tmp/offline-build/cache-apk/assets/game/. tmp/offline-build/game/
+              echo "Restored cached H5 assets from APK artifact #92."
+            fi
           fi
           test -s tmp/offline-build/game/index.html
           test -s tmp/offline-build/game/code.js
