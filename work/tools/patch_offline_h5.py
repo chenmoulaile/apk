@@ -10,6 +10,38 @@ HOOK = r"""
   "use strict";
   var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
   var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
+  // Resolve dynamic UI groups from the packaged UI map instead of assuming
+  // every Checkpoint/<Panel> group has a generated .atlas file.
+  try{
+    if(typeof ResGroupConfig!=="undefined"&&ResGroupConfig.prototype&&!ResGroupConfig.prototype.__offlineDynamicUiGroups){
+      var originalGetAssetList=ResGroupConfig.prototype.getAssetList;
+      ResGroupConfig.prototype.getAssetList=function(group){
+        var assets=originalGetAssetList.call(this,group);
+        if(this.obj&&Object.prototype.hasOwnProperty.call(this.obj,group))return assets;
+        if(assets.length!==1||assets[0]!=="atlas/"+group+".atlas")return assets;
+        try{
+          var ui=typeof View!=="undefined"&&View.uiMap||{},wanted=String(group||"").toLowerCase(),key=null;
+          Object.keys(ui).some(function(k){if(k.toLowerCase()===wanted){key=k;return true;}return false;});
+          if(!key)return assets;
+          var found={};
+          (function walk(value){
+            if(typeof value==="string"){
+              var path=value.trim().replace(/^\\/+/,"");
+              if(/\\.(png|jpg|jpeg|webp)$/i.test(path)){
+                if(!/^(?:atlas|res|scene|role|music)\\//i.test(path))path="atlas/"+path;
+                found[path]=true;
+              }
+            }else if(Array.isArray(value))value.forEach(walk);
+            else if(value&&typeof value==="object")Object.keys(value).forEach(function(k){walk(k);walk(value[k]);});
+          })(ui[key]);
+          var direct=Object.keys(found);
+          if(direct.length){log("local dynamic UI group",group,key,direct.length);return direct;}
+        }catch(e){log("dynamic UI group fallback",group,e&&e.message||e);}
+        return assets;
+      };
+      ResGroupConfig.prototype.__offlineDynamicUiGroups=true;
+    }
+  }catch(e){log("dynamic UI group patch",e&&e.stack||e);}
   window.addEventListener("unhandledrejection",function(e){log("unhandledrejection",e.reason&&e.reason.stack||e.reason);});
   window.addEventListener("error",function(e){log("window error",e.message,e.filename,e.lineno,e.error&&e.error.stack);});
   var read=function(){
