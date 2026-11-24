@@ -34,14 +34,14 @@ timeout 10s adb shell input tap 160 1623 > tmp/offline-test/pet-levelup-tap.txt 
 sleep 6
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-screen.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-screen.png tmp/offline-test/offline-pet-levelup-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 858 1278 > tmp/offline-test/pet-growup-tap.txt 2>&1
+timeout 10s adb shell input tap 640 1335 > tmp/offline-test/pet-growup-tap.txt 2>&1
 sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-after.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-after.png tmp/offline-test/offline-pet-levelup-after.png > /dev/null 2>&1
 # Close the strengthen overlay and open the storage replacement picker.
-timeout 10s adb shell input tap 985 55 > tmp/offline-test/pet-strengthen-close.txt 2>&1
+timeout 10s adb shell input tap 880 150 > tmp/offline-test/pet-strengthen-close.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 975 375 > tmp/offline-test/pet-replace-tap.txt 2>&1
+timeout 10s adb shell input tap 840 350 > tmp/offline-test/pet-replace-tap.txt 2>&1
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
 timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
@@ -100,6 +100,7 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
 if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.txt \
   && grep -q "local pet seed score 3101 48300" tmp/offline-test/logcat.txt \
+  && grep -q "local upgrade flash animation skipped: original frames unavailable" tmp/offline-test/logcat.txt \
   && grep -q "local pet growup 0 1->2 hp 14300 attack 2420 defense 1320 score 53130" tmp/offline-test/logcat.txt \
   && grep -q "local scene reward actions 103:4000002,1|103:1001019,10|100:200|101:20000" tmp/offline-test/logcat.txt \
   && grep -q "local point item reward 59 1000 1000" tmp/offline-test/logcat.txt \
@@ -114,6 +115,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-pet-closed-screen.png \
   && grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
+  && grep -q "local combat simulation stage 2 rounds" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && grep -q "local save restored 1069500 4" tmp/offline-test/logcat.txt \
