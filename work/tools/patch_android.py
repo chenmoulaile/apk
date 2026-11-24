@@ -13,7 +13,7 @@ def patch(root: Path) -> None:
     path = candidates[0]
     source = path.read_text(encoding="utf-8", errors="replace")
     method = re.search(
-        r"(?ms)^\\.method[^\\n]*\\bonCreate\\(Landroid/os/Bundle;\\)V[^\\n]*\\n.*?^\\.end method",
+        r"(?ms)^\.method[^\n]*\bonCreate\(Landroid/os/Bundle;\)V[^\n]*\n.*?^\.end method",
         source,
     )
     if not method:
@@ -26,25 +26,25 @@ def patch(root: Path) -> None:
         raise SystemExit("checkNetOk() call not found in onCreate")
     branch_index = None
     for i in range(call_index + 1, min(call_index + 5, len(lines))):
-        if re.search(r"\\bif-(?:eqz|nez)\\s+\\w+,\\s*:cond_\\d+", lines[i]):
+        if re.search(r"\bif-(?:eqz|nez)\s+\w+,\s*:cond_\d+", lines[i]):
             branch_index = i
             break
     if branch_index is None:
-        if any(re.search(r"\\bgoto(?:/16|/32)?\\s+:cond_\\d+", line) for line in lines[call_index+1:call_index+5]):
+        if any(re.search(r"\bgoto(?:/16|/32)?\s+:cond_\d+", line) for line in lines[call_index+1:call_index+5]):
             print("Native offline network dialog is already bypassed")
             return
         raise SystemExit("conditional branch after checkNetOk() not found")
-    target = re.search(r"(:cond_\\d+)", lines[branch_index]).group(1)
+    target = re.search(r"(:cond_\d+)", lines[branch_index]).group(1)
     if not any(line.strip() == target for line in lines[branch_index+1:]):
         raise SystemExit(f"network dialog skip label {target} is missing")
-    lines[branch_index] = re.sub(r"if-(?:eqz|nez)\\s+\\w+,\\s*:cond_\\d+", "goto " + target, lines[branch_index])
-    patched = "\\n".join(lines)
+    lines[branch_index] = re.sub(r"if-(?:eqz|nez)\s+\w+,\s*:cond_\d+", "goto " + target, lines[branch_index])
+    patched = "\n".join(lines)
     source = source[:method.start()] + patched + source[method.end():]
     path.write_text(source, encoding="utf-8")
     summary = root.parent / "native-network-dialog-patch.txt"
     summary.write_text(
         "Patched com.qk.plugin.js.shell.MainActivity.onCreate: "
-        f"checkNetOk() result now unconditionally skips network AlertDialog via {target}\\n",
+        f"checkNetOk() result now unconditionally skips network AlertDialog via {target}\n",
         encoding="utf-8",
     )
     print(summary.read_text(encoding="utf-8").strip())
