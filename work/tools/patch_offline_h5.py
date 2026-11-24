@@ -10,41 +10,6 @@ HOOK = r"""
   "use strict";
   var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
   var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
-  // Resolve dynamic UI groups from the packaged UI map instead of assuming
-  // every Checkpoint/<Panel> group has a generated .atlas file.
-  try{
-    if(typeof ResGroupConfig!=="undefined"&&ResGroupConfig.prototype&&!ResGroupConfig.prototype.__offlineDynamicUiGroups){
-      var originalGetAssetList=ResGroupConfig.prototype.getAssetList;
-      ResGroupConfig.prototype.getAssetList=function(group){
-        var assets=originalGetAssetList.call(this,group);
-        if(this.obj&&Object.prototype.hasOwnProperty.call(this.obj,group))return assets;
-        if(assets.length!==1||assets[0]!=="atlas/"+group+".atlas")return assets;
-        try{
-          var ui=typeof View!=="undefined"&&View.uiMap||{},wanted=String(group||"").toLowerCase();
-          var keys=Object.keys(ui).filter(function(k){var lower=k.toLowerCase();return lower===wanted||lower.indexOf(wanted+"/")===0;});
-          if(!keys.length)return assets;
-          var found={};
-          var walk=function(value){
-            if(typeof value==="string"){
-              var path=value.trim();
-              while(path.charAt(0)==="/")path=path.slice(1);
-              var lower=path.toLowerCase();
-              if(lower.indexOf("atlas/")===0){path=path.slice(6);lower=path.toLowerCase();}
-              if((lower.endsWith(".png")||lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".webp"))&&lower.indexOf(wanted+"/")===0){
-                found["atlas/"+path]=true;
-              }
-            }else if(Array.isArray(value))value.forEach(walk);
-            else if(value&&typeof value==="object")Object.keys(value).forEach(function(k){walk(k);walk(value[k]);});
-          };
-          keys.forEach(function(key){walk(ui[key]);});
-          var direct=Object.keys(found);
-          if(direct.length){log("local dynamic UI group",group,keys.join(","),direct.length);return direct;}
-        }catch(e){log("dynamic UI group fallback",group,e&&e.message||e);}
-        return assets;
-      };
-      ResGroupConfig.prototype.__offlineDynamicUiGroups=true;
-    }
-  }catch(e){log("dynamic UI group patch",e&&e.stack||e);}
   window.addEventListener("unhandledrejection",function(e){log("unhandledrejection",e.reason&&e.reason.stack||e.reason);});
   window.addEventListener("error",function(e){log("window error",e.message,e.filename,e.lineno,e.error&&e.error.stack);});
   var read=function(){
