@@ -26,9 +26,12 @@ HOOK = r"""
           var found={};
           (function walk(value){
             if(typeof value==="string"){
-              var path=value.trim().replace(/^\\/+/,"");
-              if(/\\.(png|jpg|jpeg|webp)$/i.test(path)){
-                if(!/^(?:atlas|res|scene|role|music)\\//i.test(path))path="atlas/"+path;
+              var path=value.trim();
+              while(path.charAt(0)==="/")path=path.slice(1);
+              var lower=path.toLowerCase();
+              if(lower.endsWith(".png")||lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".webp")){
+                var rooted=["atlas/","res/","scene/","role/","music/"].some(function(prefix){return path.indexOf(prefix)===0;});
+                if(!rooted)path="atlas/"+path;
                 found[path]=true;
               }
             }else if(Array.isArray(value))value.forEach(walk);
