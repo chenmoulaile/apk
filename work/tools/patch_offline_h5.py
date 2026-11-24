@@ -709,8 +709,8 @@ HOOK = r"""
 
 OVERLAY = """
 <style id="offline-menu-style">
-#offline-menu-button{position:fixed;z-index:2147483646;right:10px;top:118px;padding:8px 12px;border-radius:10px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:14px sans-serif}
-#offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:160px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
+#offline-menu-button{position:fixed;z-index:2147483646;right:100px;top:5px;padding:4px 6px;border-radius:8px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:11px sans-serif}
+#offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:42px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
 #offline-menu-panel h3{margin:0 0 8px;font-size:16px;color:#8de2ff}
 #offline-menu-panel .stat{font-size:12px;line-height:1.6;margin-bottom:8px;color:#d6edff}
 #offline-menu-panel button{width:100%;margin:4px 0;padding:8px;border:0;border-radius:8px;background:#287bb6;color:#fff;font-size:13px}
