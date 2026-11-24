@@ -217,17 +217,32 @@ jobs:
           "$BT/apksigner" verify --verbose dist/super-spirit-ball-offline.apk
           sha256sum dist/super-spirit-ball-offline.apk | tee dist/SHA256SUMS.txt
           APK_SHA256="$(sha256sum dist/super-spirit-ball-offline.apk | awk '{print $1}')"
-          cat > dist/README.md <<EOF
-          # Super Spirit Ball — offline APK
+          export APK_SHA256
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
 
-          - Build/test run: [#${GITHUB_RUN_NUMBER}](https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})
-          - File: `super-spirit-ball-offline.apk`
-          - SHA-256: `${APK_SHA256}`
-          - Validation: check the linked workflow for `OFFLINE_SCENE_TEST=PASS`.
+          run_url = (
+              f"{os.environ['GITHUB_SERVER_URL']}/"
+              f"{os.environ['GITHUB_REPOSITORY']}/actions/runs/"
+              f"{os.environ['GITHUB_RUN_ID']}"
+          )
+          run_number = os.environ["GITHUB_RUN_NUMBER"]
+          apk_sha256 = os.environ["APK_SHA256"]
 
-          This APK uses a local test signing key and is not signed with the original publisher key.
-          Uninstall the original app before installing this build; uninstalling may remove its app data.
-          EOF
+          Path("dist/README.md").write_text(
+              "# Super Spirit Ball — offline APK\\n\\n"
+              f"- Build/test run: [#{run_number}]({run_url})\\n"
+              "- File: `super-spirit-ball-offline.apk`\\n"
+              f"- SHA-256: `{apk_sha256}`\\n"
+              "- Validation: `OFFLINE_SCENE_TEST=PASS`.\\n\\n"
+              "This APK uses a local test signing key and is not signed with the original publisher key.\\n"
+              "Uninstall the original app before installing this build; uninstalling may remove its app data.\\n",
+              encoding="utf-8",
+          )
+          PY
+          grep -Fq "$APK_SHA256" dist/README.md
+          grep -Fq 'OFFLINE_SCENE_TEST=PASS' dist/README.md
           ls -lh dist/super-spirit-ball-offline.apk
 
       - name: Install and launch with network disabled
