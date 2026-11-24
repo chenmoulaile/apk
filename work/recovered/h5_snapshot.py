@@ -181,33 +181,59 @@ def main() -> int:
     def fetch_batch(items: Iterable[str]) -> list[str]:
         nonlocal total_bytes
         newly_downloaded: list[str] = []
-        items = sorted(set(items))
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as executor:
-            futures = {executor.submit(download_one, item): item for item in items}
-            for future in concurrent.futures.as_completed(futures):
-                relative, data, headers, error = future.result()
-                if data is None:
-                    if relative not in manifest["missing"]:  # type: ignore[operator]
-                        manifest["missing"].append(relative)  # type: ignore[union-attr]
-                    manifest["errors"].append({"path": relative, "error": error})  # type: ignore[union-attr]
-                    continue
-                if total_bytes + len(data) > total_limit:
-                    manifest["errors"].append({
-                        "path": relative,
-                        "error": f"total resource limit {args.max_total_mib} MiB reached",
-                    })  # type: ignore[union-attr]
-                    continue
-                dest = safe_dest(output, relative)
-                dest.write_bytes(data)
-                total_bytes += len(data)
-                files[relative] = {
-                    "bytes": len(data),
-                    "sha256": sha256(data),
-                    "content_type": headers.get("content-type", ""),
-                    "last_modified": headers.get("last-modified", ""),
-                    "url": base + relative,
-                }
-                newly_downloaded.append(relative)
+        pending = sorted(set(items))
+        max_attempts = 3
+
+        def is_transient(error: str | None) -> bool:
+            if not error:
+                return False
+            return error.startswith((
+                "URLError:",
+                "RemoteDisconnected:",
+                "TimeoutError:",
+                "ConnectionResetError:",
+                "ConnectionAbortedError:",
+                "IncompleteRead:",
+                "HTTP 5",
+            ))
+
+        for attempt in range(max_attempts):
+            if not pending:
+                break
+            retry: list[str] = []
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, args.workers)) as executor:
+                futures = {executor.submit(download_one, item): item for item in pending}
+                for future in concurrent.futures.as_completed(futures):
+                    relative, data, headers, error = future.result()
+                    if data is None:
+                        if attempt + 1 < max_attempts and is_transient(error):
+                            retry.append(relative)
+                            manifest["download_retry_count"] = int(manifest.get("download_retry_count", 0)) + 1
+                            continue
+                        if relative not in manifest["missing"]:  # type: ignore[operator]
+                            manifest["missing"].append(relative)  # type: ignore[union-attr]
+                        manifest["errors"].append({"path": relative, "error": error})  # type: ignore[union-attr]
+                        continue
+                    if total_bytes + len(data) > total_limit:
+                        manifest["errors"].append({
+                            "path": relative,
+                            "error": f"total resource limit {args.max_total_mib} MiB reached",
+                        })  # type: ignore[union-attr]
+                        continue
+                    dest = safe_dest(output, relative)
+                    dest.write_bytes(data)
+                    total_bytes += len(data)
+                    files[relative] = {
+                        "bytes": len(data),
+                        "sha256": sha256(data),
+                        "content_type": headers.get("content-type", ""),
+                        "last_modified": headers.get("last-modified", ""),
+                        "url": base + relative,
+                    }
+                    newly_downloaded.append(relative)
+            pending = retry
+            if pending and attempt + 1 < max_attempts:
+                time.sleep(attempt + 1)
         return newly_downloaded
 
     first = fetch_batch(queue)
