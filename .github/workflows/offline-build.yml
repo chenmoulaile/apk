@@ -231,13 +231,16 @@ jobs:
           apk_sha256 = os.environ["APK_SHA256"]
 
           Path("dist/README.md").write_text(
-              "# Super Spirit Ball — offline APK\\n\\n"
-              f"- Build/test run: [#{run_number}]({run_url})\\n"
-              "- File: `super-spirit-ball-offline.apk`\\n"
-              f"- SHA-256: `{apk_sha256}`\\n"
-              "- Validation: `OFFLINE_SCENE_TEST=PASS`.\\n\\n"
-              "This APK uses a local test signing key and is not signed with the original publisher key.\\n"
-              "Uninstall the original app before installing this build; uninstalling may remove its app data.\\n",
+              f"""# Super Spirit Ball — offline APK
+
+          - Build/test run: [#{run_number}]({run_url})
+          - File: `super-spirit-ball-offline.apk`
+          - SHA-256: `{apk_sha256}`
+          - Validation: `OFFLINE_SCENE_TEST=PASS`.
+
+          This APK uses a local test signing key and is not signed with the original publisher key.
+          Uninstall the original app before installing this build; uninstalling may remove its app data.
+          """,
               encoding="utf-8",
           )
           PY
