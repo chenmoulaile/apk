@@ -81,54 +81,26 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           root = Path("tmp/offline-build/decoded")
-          needle = "网络不可用，请检查网络状态，并重新启动游戏"
-          matches = []
+          old = "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html"
+          new = "file:///android_asset/game/index.html"
+          changed = []
           for path in root.rglob("*.smali"):
-              lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-              for i, line in enumerate(lines):
-                  if needle in line:
-                      start = i
-                      while start > 0 and not lines[start].startswith(".method "):
-                          start -= 1
-                      end = i
-                      while end < len(lines) - 1 and not lines[end].startswith(".end method"):
-                          end += 1
-                      matches.append((path, start, end, lines[start:end+1]))
-          out = Path("tmp/offline-build/network-dialog-method.smali.txt")
-          out.parent.mkdir(parents=True, exist_ok=True)
-          with out.open("w", encoding="utf-8") as f:
-              if not matches:
-                  f.write("NETWORK DIALOG STRING NOT FOUND IN DECODED SMALI\\n")
-              for path, start, end, lines in matches:
-                  f.write(f"FILE: {path}\\nLINES: {start+1}-{end+1}\\n")
-                  f.write("\\n".join(lines) + "\\n\\n")
-          print(out.read_text(encoding="utf-8"))
-          PY
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path("tmp/offline-build/decoded")
-          needle = "网络不可用，请检查网络状态，并重新启动游戏"
-          matches = []
-          for path in root.rglob("*.smali"):
-              lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-              for i, line in enumerate(lines):
-                  if needle in line:
-                      start = i
-                      while start > 0 and not lines[start].startswith(".method "):
-                          start -= 1
-                      end = i
-                      while end < len(lines) - 1 and not lines[end].startswith(".end method"):
-                          end += 1
-                      matches.append((path, start, end, lines[start:end+1]))
-          out = Path("tmp/offline-build/network-dialog-method.smali.txt")
-          out.parent.mkdir(parents=True, exist_ok=True)
-          with out.open("w", encoding="utf-8") as f:
-              if not matches:
-                  f.write("NETWORK DIALOG STRING NOT FOUND IN DECODED SMALI\\n")
-              for path, start, end, lines in matches:
-                  f.write(f"FILE: {path}\\nLINES: {start+1}-{end+1}\\n")
-                  f.write("\\n".join(lines) + "\\n\\n")
-          print(out.read_text(encoding="utf-8"))
+              text = path.read_text(encoding="utf-8", errors="replace")
+              if old in text:
+                  path.write_text(text.replace(old, new), encoding="utf-8")
+                  changed.append(str(path))
+          if not changed:
+              raise SystemExit("H5 entry URL was not found in decoded smali")
+          print("Patched H5 entry in:", *changed, sep="\n  ")
+          assets = root / "assets" / "game"
+          assets.mkdir(parents=True, exist_ok=True)
+          import shutil
+          shutil.copytree("tmp/offline-build/game", assets, dirs_exist_ok=True)
+          required = ["index.html", "code.js", "zip.txt", "libQuickSDKH5_To_Client.js"]
+          missing = [x for x in required if not (assets / x).is_file()]
+          if missing:
+              raise SystemExit("missing packaged H5 files: " + ", ".join(missing))
+          print("Packaged local H5 bytes:", sum(p.stat().st_size for p in assets.rglob("*") if p.is_file()))
           PY
           python3 - <<'PY'
           from pathlib import Path
@@ -216,5 +188,6 @@ jobs:
             dist/
             tmp/offline-test/
             tmp/offline-build/network-dialog-method.smali.txt
+            tmp/offline-build/native-network-dialog-patch.txt
           if-no-files-found: warn
           retention-days: 30
