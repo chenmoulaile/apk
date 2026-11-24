@@ -26,6 +26,7 @@ CORE_FILES = [
     "zip.txt",
     "atlas/loading.atlas",
     "atlas/loading/bg3.jpg",
+    "atlas/guide1.atlas",
     # Runtime fallback groups requested by loadCommonResAndConfigZip().
     "atlas/common.atlas",
     "atlas/common2.atlas",
