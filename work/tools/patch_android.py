@@ -41,10 +41,27 @@ def patch(root: Path) -> None:
     patched = "\n".join(lines)
     source = source[:method.start()] + patched + source[method.end():]
     path.write_text(source, encoding="utf-8")
+    # QuickSDK may push a login callback before the H5 document has parsed its bridge stub.
+    # Guard the native javascript: URL so an early callback cannot raise a page-level ReferenceError.
+    callback_marker = "javascript:CallbackFromAndroid('"
+    guarded_marker = "javascript:if(window.CallbackFromAndroid)CallbackFromAndroid('"
+    callback_matches = []
+    for smali in root.rglob("*.smali"):
+        content = smali.read_text(encoding="utf-8", errors="replace")
+        count = content.count(callback_marker)
+        if count:
+            callback_matches.append((smali, content, count))
+    total_callbacks = sum(count for _, _, count in callback_matches)
+    if total_callbacks != 1:
+        raise SystemExit(f"expected one native CallbackFromAndroid javascript URL, found {total_callbacks}")
+    smali, content, count = callback_matches[0]
+    smali.write_text(content.replace(callback_marker, guarded_marker), encoding="utf-8")
+    print(f"Guarded early QuickSDK callback in {smali}")
     summary = root.parent / "native-network-dialog-patch.txt"
     summary.write_text(
         "Patched com.qk.plugin.js.shell.MainActivity.onCreate: "
-        f"checkNetOk() result now unconditionally skips network AlertDialog via {target}\n",
+        f"checkNetOk() result now unconditionally skips network AlertDialog via {target}\n"
+        f"Guarded {total_callbacks} early CallbackFromAndroid javascript call(s) in {smali.name}\n",
         encoding="utf-8",
     )
     print(summary.read_text(encoding="utf-8").strip())

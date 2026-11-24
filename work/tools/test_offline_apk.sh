@@ -68,8 +68,8 @@ cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt > t
 } > tmp/offline-test/SUMMARY.txt
 cat tmp/offline-test/SUMMARY.txt
 BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|\\[Offline\\] unhandledrejection (TypeError|ReferenceError|NotSupportedError)'
-# Ignore only the single native callback race emitted before the page is parsed.
-FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt | grep -vF "Uncaught ReferenceError: CallbackFromAndroid is not defined" || true)
+# Fail on every uncaught JavaScript exception, including early native callback races.
+FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
 if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
