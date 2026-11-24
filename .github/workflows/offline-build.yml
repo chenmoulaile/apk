@@ -66,17 +66,20 @@ jobs:
             --workers 16 | tee tmp/offline-build/snapshot-summary.json; then
             echo "Live H5 snapshot failed; trying the last verified offline APK artifact as a resource cache."
             mkdir -p tmp/offline-build/cache-artifact tmp/offline-build/cache-apk
-            GH_TOKEN="${{ github.token }}" gh run download 45385982857 \
+            GH_TOKEN="${{ github.token }}" gh run download 45383112667 \
               --repo "${{ github.repository }}" \
-              --name offline-apk-test-94 \
+              --name offline-apk-test-92 \
               --dir tmp/offline-build/cache-artifact
+            CACHED_ZIP="$(find tmp/offline-build/cache-artifact -type f -name '*.apk' -o -name '*.zip' | head -n 1)"
+            test -n "$CACHED_ZIP"
+            unzip -tq "$CACHED_ZIP" >/dev/null
             CACHED_APK="$(find tmp/offline-build/cache-artifact -name 'super-spirit-ball-offline.apk' -print -quit)"
             test -n "$CACHED_APK"
             unzip -q "$CACHED_APK" 'assets/game/*' -d tmp/offline-build/cache-apk
             test -s tmp/offline-build/cache-apk/assets/game/code.js
             mkdir -p tmp/offline-build/game
             cp -a tmp/offline-build/cache-apk/assets/game/. tmp/offline-build/game/
-            echo "Restored cached H5 assets from the last verified APK."
+            echo "Restored cached H5 assets from build artifact #92. Its APK build/signing and offline PvE/save flow passed; only the later pet-storage UI assertion failed."
           fi
           test -s tmp/offline-build/game/index.html
           test -s tmp/offline-build/game/code.js
