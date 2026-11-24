@@ -34,23 +34,23 @@ timeout 10s adb shell input tap 160 1623 > tmp/offline-test/pet-levelup-tap.txt 
 sleep 6
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-screen.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-screen.png tmp/offline-test/offline-pet-levelup-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 640 1560 > tmp/offline-test/pet-growup-tap.txt 2>&1
+timeout 10s adb shell input tap 750 1550 > tmp/offline-test/pet-growup-tap.txt 2>&1
 sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-after.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-after.png tmp/offline-test/offline-pet-levelup-after.png > /dev/null 2>&1
 # Close the strengthen overlay and open the storage replacement picker.
-timeout 10s adb shell input tap 880 160 > tmp/offline-test/pet-strengthen-close.txt 2>&1
+timeout 10s adb shell input tap 1024 177 > tmp/offline-test/pet-strengthen-close.txt 2>&1
 sleep 5
 timeout 10s adb shell input tap 840 350 > tmp/offline-test/pet-replace-tap.txt 2>&1
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
 timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
 # Close the modal replacement picker using its visible close button, then return to Adventure.
-timeout 10s adb shell input tap 975 245 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
+timeout 10s adb shell input tap 880 150 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-pet-closed-screen.png
 timeout 30s adb pull /sdcard/offline-pet-closed-screen.png tmp/offline-test/offline-pet-closed-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 465 1835 > tmp/offline-test/adventure-tab-return.txt 2>&1
+timeout 10s adb shell input tap 535 1835 > tmp/offline-test/adventure-tab-return.txt 2>&1
 sleep 5
 # Main Challenge button center: logical (355,1078), scaled to 1080x1920.
 timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
