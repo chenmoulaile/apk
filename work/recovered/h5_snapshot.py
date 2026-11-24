@@ -55,6 +55,12 @@ CORE_FILES = [
     "atlas/combat/animation0.atlas",
     "atlas/combat/frmBattle.atlas",
     "atlas/mainUI/laba02_bg.png",
+    # Dynamic UI groups normally fall back to these atlas bundles at runtime.
+    "atlas/Checkpoint/MainChallenge.atlas",
+    "atlas/Checkpoint/Result.atlas",
+    "atlas/Checkpoint/QuickCombat.atlas",
+    "atlas/Checkpoint/offLineGiftPanel.atlas",
+    "atlas/CombatFormation.atlas",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
