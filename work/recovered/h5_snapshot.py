@@ -33,7 +33,7 @@ CORE_FILES = [
     "atlas/commonAni.atlas",
 ]
 EXT_RE = re.compile(
-    r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene)/"
+    r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
     r"[A-Za-z0-9_./-]+\.(?:atlas|json|png|jpg|jpeg|webp|mp3|wav|ttf|fnt|sk|zip))",
     re.IGNORECASE,
 )
@@ -199,6 +199,22 @@ def main() -> int:
             re.IGNORECASE,
         )
     )
+    # The scene player avatar is loaded dynamically by RoleAtlasAnimation.
+    # A fresh offline profile uses avatarId=1 and these directional frame names.
+    queue.update({
+        "atlas/role/1.atlas",
+        "atlas/trainerInfo.atlas",
+        "res/music/10004.mp3",
+        *[
+            f"role/1/{direction}{frame}.png"
+            for direction, count in (
+                ("back", 4), ("front", 4), ("left", 6),
+                ("rideback", 1), ("ridefront", 1), ("rideleft", 1),
+                ("standback", 1), ("standfront", 1), ("standleft", 1),
+            )
+            for frame in range(1, count + 1)
+        ],
+    })
     config_path = output / "zip.txt"
     if config_path.is_file():
         decoded = decode_config(config_path.read_bytes())

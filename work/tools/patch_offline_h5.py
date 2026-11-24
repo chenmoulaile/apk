@@ -52,6 +52,27 @@ HOOK = r"""
     if(!u.extInfo.chaseBeastInfo.chaseBeastGuardInfo)u.extInfo.chaseBeastInfo.chaseBeastGuardInfo={};
   }
   function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
+  function normalizePetPack(u){
+    if(!u.petPackInfo)u.petPackInfo=new rp.PetPackInfo();
+    var packs=u.petPackInfo.packArray;
+    if(!Array.isArray(packs))packs=[];
+    var first=packs[0]&&packs[0].pet;
+    if(!first||!first.id)first=petFrom(null);
+    for(var i=0;i<6;i++){
+      var node=packs[i];
+      if(!node){node=new rp.PackNode();node.index=i;node.state=0;node.equip=[];}
+      if(!node.equip)node.equip=[];
+      if(i===0&&(!node.pet||!node.pet.id)){node.pet=first;node.state=1;node.combatPos=1;}
+      packs[i]=node;
+    }
+    packs.length=6;
+    u.petPackInfo.packArray=packs;
+    if(!u.petStorageInfo)u.petStorageInfo=new rp.PetStorageInfo();
+    if(!Array.isArray(u.petStorageInfo.petArray))u.petStorageInfo.petArray=[];
+    if(!u.petStorageInfo.petArray.some(function(x){return x&&x.genId===first.genId;}))u.petStorageInfo.petArray.push(first);
+    if(!u.petStorageInfo.sidGenerator)u.petStorageInfo.sidGenerator=100002;
+    return packs;
+  }
   function userInfo(){
     if(saved.restored&&saved.restored.baseInfo){
       current=saved.restored;
@@ -64,6 +85,7 @@ HOOK = r"""
       if(!current.collectCardInfo)current.collectCardInfo=new rp.CardCollectInfo();
       if(!current.collectCardInfo.nowSeason||!GC.G().CARD_COLLECT_SEASON_CONF.getDes(current.collectCardInfo.nowSeason))current.collectCardInfo.nowSeason=currentCardSeason();
       if(!current.petRoomInfo)current.petRoomInfo=new rp.PetRoomInfo();
+      normalizeGuideSchedule(current);normalizePetPack(current);
       return current;
     }
     var u=new rp.UserDataInfo(), b=new rp.UserBaseInfo(), old=saved.userInfo&&saved.userInfo.baseInfo||{};
@@ -115,6 +137,7 @@ HOOK = r"""
     if(!u.guideScheduleInfo)u.guideScheduleInfo=new rp.GuideActiveSchedule();
     if(!u.guideScheduleInfo.riseStepByStep)u.guideScheduleInfo.riseStepByStep=new rp.GuideActive();
     u.guideScheduleInfo.riseStepByStep.isFinish=1;
+    normalizeGuideSchedule(u);normalizePetPack(u);
     return u;
   }
   function save(){
@@ -169,7 +192,7 @@ HOOK = r"""
       var r=new Resp();r.ret=0;
       log("local protobuf",req&&req.constructor&&req.constructor.name,Resp&&Resp.name);
       try{for(var key in r)if(r[key]===null)r[key]={};}catch(_){}
-      if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();normalizeGuideSchedule(r.userInfo);current=r.userInfo;log("login guide defaults",!!r.userInfo.guideScheduleInfo,!!r.userInfo.guideScheduleInfo.riseStepByStep);r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
+      if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();normalizeGuideSchedule(r.userInfo);normalizePetPack(r.userInfo);current=r.userInfo;log("login guide defaults",!!r.userInfo.guideScheduleInfo,!!r.userInfo.guideScheduleInfo.riseStepByStep);r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
         r.openSvrDays=20;r.openSvrTime=Math.floor(Date.now()/1000)-20*86400;r.mergeSvrDays=0;r.mergeSvrTime=0;r.loginNotice={title:"",nickName:"",content:"",name:"",date:""};log("local LoginRsp");}
       else if(Resp===rp.HeartBeatRsp){r.ret=0;r.serverMtime=long(Date.now());log("local heartbeat");}
       else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
@@ -177,6 +200,18 @@ HOOK = r"""
       return Promise.resolve(r);
     };
   }
+  try{
+    var crm=game.combat&&game.combat.CombatResManager&&game.combat.CombatResManager.prototype;
+    if(crm&&!crm.__offlinePetPackGuard){
+      var preloadCombatRes=crm.preloadCombatRes;
+      crm.preloadCombatRes=function(){
+        try{var u=DM.G().userInfo,slots=normalizePetPack(u);log("pet pack normalized before combat preload",slots.length,slots[0]&&!!slots[0].pet);}
+        catch(e){log("pet pack normalization",e&&e.stack||e);}
+        return preloadCombatRes.apply(this,arguments);
+      };
+      crm.__offlinePetPackGuard=true;
+    }
+  }catch(e){log("combat preload guard",e&&e.stack||e);}
   if(typeof game!=="undefined"&&game.module&&game.module.login){
     var L=game.module.login.LoginModule;
     L.prototype.prelogin=function(){this._isNewUser=false;this.currentZone={zone_id:1,user_id:UID,name:"本地离线服",status:1,repair:0};this.host="127.0.0.1";this.port=19999;DM.userID=long(UID);return Promise.resolve();};
