@@ -102,42 +102,6 @@ jobs:
               raise SystemExit("missing packaged H5 files: " + ", ".join(missing))
           print("Packaged local H5 bytes:", sum(p.stat().st_size for p in assets.rglob("*") if p.is_file()))
           PY
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path("tmp/offline-build/decoded")
-          import re
-          network_checks = []
-          for path in root.rglob("*.smali"):
-              text = path.read_text(encoding="utf-8", errors="replace")
-              pattern = re.compile(r"(?ms)^(\.method[^\n]*\bcheckNetOk\(\)Z[^\n]*\n).*?^\.end method")
-              updated, count = pattern.subn(r"\1    .locals 1\n    const/4 v0, 0x1\n    return v0\n.end method", text)
-              if count:
-                  path.write_text(updated, encoding="utf-8")
-                  network_checks.append(str(path))
-          if len(network_checks) != 1:
-              raise SystemExit(f"Expected exactly one MainActivity.checkNetOk()Z, patched {network_checks}")
-          print("Patched native connectivity gate to allow local-only mode:", *network_checks, sep="\\n  ")
-          old = "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html"
-          new = "file:///android_asset/game/index.html"
-          changed = []
-          for path in root.rglob("*.smali"):
-              text = path.read_text(encoding="utf-8", errors="replace")
-              if old in text:
-                  path.write_text(text.replace(old, new), encoding="utf-8")
-                  changed.append(str(path))
-          if not changed:
-              raise SystemExit("H5 entry URL was not found in decoded smali")
-          print("Patched H5 entry in:", *changed, sep="\n  ")
-          assets = root / "assets" / "game"
-          assets.mkdir(parents=True, exist_ok=True)
-          import shutil
-          shutil.copytree("tmp/offline-build/game", assets, dirs_exist_ok=True)
-          required = ["index.html", "code.js", "zip.txt", "libQuickSDKH5_To_Client.js"]
-          missing = [x for x in required if not (assets / x).is_file()]
-          if missing:
-              raise SystemExit("missing packaged H5 files: " + ", ".join(missing))
-          print("Packaged local H5 bytes:", sum(p.stat().st_size for p in assets.rglob("*") if p.is_file()))
-          PY
 
       - name: Rebuild APK
         run: |
@@ -187,7 +151,6 @@ jobs:
           path: |
             dist/
             tmp/offline-test/
-            tmp/offline-build/network-dialog-method.smali.txt
             tmp/offline-build/native-network-dialog-patch.txt
           if-no-files-found: warn
           retention-days: 30
