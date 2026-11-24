@@ -418,30 +418,168 @@ HOOK = r"""
   }
   function combatSpirit(id,level,hp){
     var s=new rp.CombatSpirit();
-    s.id=id||0;s.level=level||1;s.status=id?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.UNKNOW;
-    s.hp=long(id?hp||12000:0);s.fullHp=long(id?hp||12000:0);s.oldHp=id?hp||12000:0;
+    s.id=Number(id)||0;s.level=Number(level)||1;
+    s.status=s.id?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.UNKNOW;
+    s.hp=long(s.id?Math.max(1,Number(hp)||1):0);
+    s.fullHp=long(s.id?Math.max(1,Number(hp)||1):0);
+    s.oldHp=s.id?Math.max(1,Number(hp)||1):0;
     s.mp=50;s.buffMap={};return s;
   }
-  function combatPlayer(id,name,petId,level){
+  function combatPlayer(id,name,level,entries){
     var p=new rp.CombatPlayer();p.id=(Number(id)===0?0:long(id));p.name=name;p.level=level||1;p.sex=2;
     p.commuSkillId=0;p.warCmdLevel=0;p.warCmdSkill=0;p.godSkill=false;
     p.partner=[combatSpirit(0,1,0)];p.spirits=[];
-    for(var i=0;i<6;i++)p.spirits.push(i===0?combatSpirit(petId,level,16000):combatSpirit(0,1,0));
+    for(var i=0;i<6;i++){
+      var pet=entries[i];
+      p.spirits.push(pet?combatSpirit(pet.id,pet.level,pet.hp):combatSpirit(0,1,0));
+    }
     return p;
+  }
+  function offlineCombatPet(id,level,hp,attack,defense,skillId){
+    return {id:Number(id)||0,level:Number(level)||1,hp:Math.max(1,Number(hp)||1),
+      fullHp:Math.max(1,Number(hp)||1),attack:Math.max(1,Number(attack)||1),
+      defense:Math.max(0,Number(defense)||0),skillId:Number(skillId)||13108,
+      mp:50,status:rp.CombatSpiritStatus.ALIVE};
+  }
+  function offlinePetFromEntry(pet){
+    if(!pet||!Number(pet.id))return null;
+    var cfg=GC.G().spiritConfig.getDes(Number(pet.id));
+    if(!cfg)return null;
+    return offlineCombatPet(pet.id,pet.level||1,pet.hp||cfg.hp,pet.attack||cfg.attack,
+      pet.defense||cfg.defense,cfg.basicSkill);
+  }
+  function offlinePveEnemies(stage){
+    var stageCfg=GC.G().NEW_SCENE_GRADE_CONF.getDes(Number(stage));
+    var teamId=stageCfg&&stageCfg.fightId&&Number(stageCfg.fightId[0])||0;
+    var team=teamId&&GC.G().PVE_TEAM_CONF.getDes(teamId);
+    var result=new Array(6);
+    if(!team||!Array.isArray(team.petId))return result;
+    for(var i=0;i<6;i++){
+      var id=Number(team.petId[i])||0;
+      if(!id)continue;
+      var pvePet=GC.G().PVE_PET_CONF.getDes(id);
+      if(!pvePet)continue;
+      var cfg=GC.G().spiritConfig.getDes(Number(pvePet.petId));
+      if(!cfg)continue;
+      // The archived PVE table provides the opponent's exact species and level;
+      // this deterministic local simulator uses that species' base combat stats.
+      var level=Number(pvePet.petLevel)||1;
+      var factor=1+Math.max(0,level-1)*0.04;
+      result[i]=offlineCombatPet(cfg.id,level,Math.round(Number(cfg.hp||1)*factor),
+        Math.round(Number(cfg.attack||cfg.basicAttack||1)*factor),
+        Math.round(Number(cfg.defense||cfg.basicDefense||0)*factor),cfg.basicSkill);
+    }
+    return result;
+  }
+  function offlinePlayerFormation(u){
+    var entries=new Array(6),packs=u&&u.petPackInfo&&u.petPackInfo.packArray||[];
+    for(var i=0;i<packs.length;i++){
+      var node=packs[i],pet=node&&node.pet;
+      if(!pet||!Number(pet.id))continue;
+      var position=Number(node.combatPos)||((i%6)+1);
+      if(position<1||position>6||entries[position-1])continue;
+      entries[position-1]=offlinePetFromEntry(pet);
+    }
+    if(!entries.some(function(x){return !!x;})){
+      var fallback=petFrom(null);
+      entries[0]=offlinePetFromEntry(fallback);
+    }
+    return entries;
+  }
+  function offlineAlive(pet){return !!pet&&pet.hp>0&&pet.status!==rp.CombatSpiritStatus.DEAD;}
+  function offlineLivingCount(side){return side.filter(offlineAlive).length;}
+  function offlineCombatChange(sideIndex,slot,pet,effect,amount,oldHp){
+    var change=new rp.CombatSpiritDataChange();
+    change.pos=(sideIndex<<4)+slot;change.effect=effect;
+    change.oldValue=Math.max(0,Number(oldHp)||0);change.value=long(Math.max(0,Number(amount)||0));
+    var next=new rp.CombatSpirit();
+    next.id=pet.id;next.level=pet.level;next.status=offlineAlive(pet)?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.DEAD;
+    next.hp=long(Math.max(0,pet.hp));next.fullHp=long(pet.fullHp);next.oldHp=Math.max(0,Number(oldHp)||0);
+    next.mp=pet.mp||0;next.buffMap={};change.data=next;
+    return change;
+  }
+  function offlineSkillFor(pet){
+    var skill=pet&&GC.G().skillConfig.getDes(Number(pet.skillId)||13108);
+    return skill||GC.G().skillConfig.getDes(13108);
+  }
+  function offlineLowestHpTarget(side){
+    var best=-1,ratio=2;
+    for(var i=0;i<side.length;i++){
+      if(!offlineAlive(side[i]))continue;
+      var r=side[i].hp/Math.max(1,side[i].fullHp);
+      if(r<ratio){ratio=r;best=i;}
+    }
+    return best;
+  }
+  function offlineApplySkill(steps,actorSide,slot,round,actor,ownSide,enemySide){
+    if(!offlineAlive(actor))return;
+    var skill=offlineSkillFor(actor),logic=Number(skill&&skill.logics&&skill.logics[0]&&skill.logics[0].logic)||1;
+    var percent=Number(skill&&skill.logics&&skill.logics[0]&&skill.logics[0].param2)||100;
+    var healing=logic===3,targetSide=healing?ownSide:enemySide,targetSideIndex=healing?actorSide:1-actorSide;
+    var targets=[];
+    if(healing){
+      var healTarget=offlineLowestHpTarget(targetSide);
+      if(healTarget>=0&&targetSide[healTarget].hp<targetSide[healTarget].fullHp)targets.push(healTarget);
+    }else if(Number(skill&&skill.opparea)===17){
+      for(var i=0;i<targetSide.length;i++)if(offlineAlive(targetSide[i]))targets.push(i);
+    }else{
+      for(var j=0;j<targetSide.length;j++)if(offlineAlive(targetSide[j])){targets.push(j);break;}
+    }
+    if(!targets.length)return;
+    var step=new rp.CombatOneStep();step.doWhat=rp.CombatStepType.SKILL;
+    step.skillId=Number(skill&&skill.id)||actor.skillId;step.source=(actorSide<<4)+slot;step.round=round;step.changes=[];
+    for(var k=0;k<targets.length;k++){
+      var index=targets[k],target=targetSide[index],oldHp=target.hp,amount;
+      if(healing){
+        amount=Math.max(1,Math.floor(actor.attack*percent/100));
+        target.hp=Math.min(target.fullHp,target.hp+amount);target.status=rp.CombatSpiritStatus.ALIVE;
+      }else{
+        amount=Math.max(1,Math.floor((actor.attack*percent/100)-target.defense*0.2));
+        target.hp=Math.max(0,target.hp-amount);
+        if(target.hp<=0)target.status=rp.CombatSpiritStatus.DEAD;
+      }
+      step.changes.push(offlineCombatChange(targetSideIndex,index,target,
+        healing?rp.CombatSkillEffect.HEAL:rp.CombatSkillEffect.NORMAL_ATTACK,
+        Math.abs(target.hp-oldHp),oldHp));
+    }
+    steps.push(step);
   }
   function makeOfflineCombat(stage){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
-    var myPet=u&&u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet;
-    var myPetId=myPet&&myPet.id||3101;
-    var myLevel=myPet&&myPet.level||1;
-    var data=new rp.OneCombatData();data.type=rp.CombatType.PVE;data.result=rp.CombatResult.WIN;
+    var playerSide=offlinePlayerFormation(u),enemySide=offlinePveEnemies(stage);
+    var playerLevel=1;
+    playerSide.forEach(function(p){if(p)playerLevel=Math.max(playerLevel,p.level);});
+    var data=new rp.OneCombatData();data.type=rp.CombatType.PVE;
     data.players=[
-      combatPlayer(u&&u.baseInfo&&u.baseInfo.userId||UID,u&&u.baseInfo&&u.baseInfo.name||NAME,myPetId,myLevel),
-      combatPlayer(0,"离线训练对手",3108,1)
+      combatPlayer(u&&u.baseInfo&&u.baseInfo.userId||UID,u&&u.baseInfo&&u.baseInfo.name||NAME,playerLevel,playerSide),
+      combatPlayer(0,"离线训练对手",1,enemySide)
     ];
     var begin=new rp.CombatOneStep();begin.doWhat=rp.CombatStepType.START;begin.round=1;begin.source=0;
-    var finish=new rp.CombatOneStep();finish.doWhat=rp.CombatStepType.END;finish.round=1;finish.source=0;
-    data.steps=[begin,finish];data.totalRound=1;data.time=3;data.rewards=[];
+    data.steps=[begin];
+    var maxRounds=12,round=0;
+    for(var r=1;r<=maxRounds;r++){
+      round=r;
+      if(r>1){var roundStep=new rp.CombatOneStep();roundStep.doWhat=rp.CombatStepType.ROUND;roundStep.round=r;roundStep.source=0;data.steps.push(roundStep);}
+      for(var side=0;side<2;side++){
+        var actors=side===0?playerSide:enemySide;
+        for(var slot=0;slot<6;slot++){
+          if(!offlineLivingCount(side===0?enemySide:playerSide))break;
+          var actor=actors[slot];
+          if(!offlineAlive(actor))continue;
+          offlineApplySkill(data.steps,side,slot,r,actor,actors,side===0?enemySide:playerSide);
+        }
+      }
+      if(!offlineLivingCount(enemySide)||!offlineLivingCount(playerSide))break;
+    }
+    var playerAlive=offlineLivingCount(playerSide),enemyAlive=offlineLivingCount(enemySide);
+    data.result=enemyAlive===0?rp.CombatResult.WIN:playerAlive===0?rp.CombatResult.LOSE:
+      playerSide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)>=
+      enemySide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)?rp.CombatResult.WIN:rp.CombatResult.LOSE;
+    var finish=new rp.CombatOneStep();finish.doWhat=rp.CombatStepType.END;finish.round=round;finish.source=0;
+    data.steps.push(finish);data.totalRound=round;data.time=Math.max(3,round*3);data.rewards=[];
+    data.ownDeadPetNum=6-playerAlive;data.enermyDeadPetNum=6-enemyAlive;
+    log("local combat simulation","stage",stage,"rounds",round,"steps",data.steps.length,
+      "players",playerAlive,"enemies",enemyAlive,"result",data.result);
     return data;
   }
   function makeOfflineSceneFight(req){
