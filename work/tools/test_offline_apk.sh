@@ -79,6 +79,43 @@ timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 
 timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
 timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
 timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
+# Exercise the restored local daily, weekly and main-story task flows.
+# The task shortcut opens the original game task panels backed by local task data.
+timeout 10s adb shell input tap 1030 30 > tmp/offline-test/task-shortcut-tap.txt 2>&1
+sleep 12
+timeout 20s adb shell screencap -p /sdcard/offline-task-daily.png
+timeout 30s adb pull /sdcard/offline-task-daily.png tmp/offline-test/offline-task-daily.png > /dev/null 2>&1
+# The first ready daily row is login; after that, the pet-upgrade task is ready.
+timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-daily-login-claim.txt 2>&1
+sleep 4
+timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-daily-pet-claim.txt 2>&1
+sleep 4
+# First daily activity chest requires 20 liveness.
+timeout 10s adb shell input tap 365 609 > tmp/offline-test/task-daily-box-claim.txt 2>&1
+sleep 4
+timeout 20s adb shell screencap -p /sdcard/offline-task-daily-claimed.png
+timeout 30s adb pull /sdcard/offline-task-daily-claimed.png tmp/offline-test/offline-task-daily-claimed.png > /dev/null 2>&1
+# Switch to weekly tab, claim its completed local-login task, then main-story tab.
+timeout 10s adb shell input tap 350 105 > tmp/offline-test/task-week-tab.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-task-weekly.png
+timeout 30s adb pull /sdcard/offline-task-weekly.png tmp/offline-test/offline-task-weekly.png > /dev/null 2>&1
+timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-week-login-claim.txt 2>&1
+sleep 4
+# Main-story tab is the third tab when the optional training tab is locked,
+# and the fourth tab when training is available.
+if grep -q "local task panel tabs 4" tmp/offline-test/first-run-logcat.txt 2>/dev/null; then
+  adb shell input tap 740 105 > tmp/offline-test/task-main-tab.txt 2>&1
+else
+  adb shell input tap 545 105 > tmp/offline-test/task-main-tab.txt 2>&1
+fi
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
+timeout 30s adb pull /sdcard/offline-task-main.png tmp/offline-test/offline-task-main.png > /dev/null 2>&1
+timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
+timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
 # Preserve first-session evidence, then cold-restart while networking remains disabled.
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/first-run-logcat.txt
 adb shell am force-stop com.ruirui.cjjlq
@@ -116,6 +153,12 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored points 19000 4000" tmp/offline-test/logcat.txt \
   && grep -q "local save restored inventory 18" tmp/offline-test/logcat.txt \
   && grep -q "local pet storage loaded 1 18" tmp/offline-test/logcat.txt \
+  && grep -q "local NewTaskInfoOperate 0 daily 16 week 15 main 1" tmp/offline-test/logcat.txt \
+  && grep -q "local task claimed daily 1 liveness 10" tmp/offline-test/logcat.txt \
+  && grep -q "local task claimed daily 13 liveness 10" tmp/offline-test/logcat.txt \
+  && grep -q "local task box claimed daily 1 liveness 20" tmp/offline-test/logcat.txt \
+  && grep -q "local task claimed weekly 3 liveness 10" tmp/offline-test/logcat.txt \
+  && grep -q "local main task claimed 1 next 2" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
@@ -166,7 +209,12 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-combat-formation-panel.png \
   && test -s tmp/offline-test/offline-battle-screen.png \
   && test -s tmp/offline-test/offline-progress-screen.png \
-  && test -s tmp/offline-test/offline-reload-screen.png; then
+  && test -s tmp/offline-test/offline-reload-screen.png \
+  && test -s tmp/offline-test/offline-task-daily.png \
+  && test -s tmp/offline-test/offline-task-daily-claimed.png \
+  && test -s tmp/offline-test/offline-task-weekly.png \
+  && test -s tmp/offline-test/offline-task-main.png \
+  && test -s tmp/offline-test/offline-task-main-claimed.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
