@@ -524,11 +524,35 @@ HOOK = r"""
     for(var i=0;i<attrs.length;i++)value+=Math.abs(Number(attrs[i].addValue)||0);
     return (Number(cfg&&cfg.grade)||0)*1000000+value;
   }
+  function localLongValue(value){
+    try{
+      if(value&&typeof value==="object"&&value.low!=null&&value.high!=null&&$util.Long){
+        return $util.Long.fromBits(Number(value.low)||0,Number(value.high)||0,value.unsigned!==false);
+      }
+    }catch(e){log("local sid restore conversion",e);}
+    return long(value);
+  }
+  function localNormalizeItemBase(raw){
+    if(!raw)return raw;
+    var item=raw;
+    if(!(item instanceof rp.ItemBase)){
+      item=new rp.ItemBase();
+      Object.keys(raw).forEach(function(k){item[k]=raw[k];});
+    }
+    if(item.sid!=null)item.sid=localLongValue(item.sid);
+    if(item.equipInfo&&!(item.equipInfo instanceof rp.ItemBaseEquip)){
+      var info=new rp.ItemBaseEquip();
+      Object.keys(item.equipInfo).forEach(function(k){info[k]=item.equipInfo[k];});
+      item.equipInfo=info;
+    }
+    if(item.genId==null)item.genId=Number(item.sid)||0;
+    return item;
+  }
   function localNextItemSid(pack){
     var next=Math.max(100002,Math.floor(Number(pack.sidGenerator)||100002));
     while(pack.sidMap[String(next)])next++;
-    pack.sidGenerator=long(next+1);
-    return long(next);
+    pack.sidGenerator=localLongValue(next+1);
+    return localLongValue(next);
   }
   function localMakeEquipmentItem(id,pack,template){
     var item=new rp.ItemBase();
@@ -581,7 +605,9 @@ HOOK = r"""
     packs.forEach(function(node){
       if(!node)return;
       if(!Array.isArray(node.equip))node.equip=[];
-      node.equip.forEach(function(item){
+      node.equip.forEach(function(rawItem,index){
+        var item=localNormalizeItemBase(rawItem);
+        node.equip[index]=item;
         if(!item||!localEquipmentPosition(item.id))return;
         if(item.sid==null||String(item.sid)==="0"){
           item.sid=localNextItemSid(pack);item.genId=Number(item.sid);
@@ -593,13 +619,15 @@ HOOK = r"""
       });
     });
     Object.keys(pack.sidMap).forEach(function(k){
-      var item=pack.sidMap[k];
+      var item=localNormalizeItemBase(pack.sidMap[k]);
       if(!item)return;
-      if(item.sid==null||String(item.sid)==="0")item.sid=long(k);
+      if(item.sid==null||String(item.sid)==="0")item.sid=localLongValue(k);
       item.id=Number(item.id)||0;item.count=1;
       if(!item.equipInfo)item.equipInfo=new rp.ItemBaseEquip();
       item.equipInfo.equipIndex=localEquipmentPosition(item.id);
       if(!item.genId)item.genId=Number(item.sid)||0;
+      if(String(item.sid)!==String(k))delete pack.sidMap[k];
+      pack.sidMap[String(item.sid)]=item;
     });
     refreshLocalItemIndexes(u);
     log("local equipment inventory normalized",
@@ -1258,11 +1286,11 @@ HOOK = r"""
     Object.keys(storedSidItems).forEach(function(sid){
       var raw=storedSidItems[sid]||{},item=new rp.ItemBase();
       Object.keys(raw).forEach(function(k){item[k]=raw[k];});
-      item.sid=long(raw.sid==null?sid:raw.sid);
+      item.sid=localLongValue(raw.sid==null?sid:raw.sid);
       item.id=Number(item.id)||0;item.count=1;
       u.itemPackInfo.sidMap[String(item.sid)]=item;
     });
-    u.itemPackInfo.sidGenerator=long(saved.itemPackInfo&&saved.itemPackInfo.sidGenerator||100002);
+    u.itemPackInfo.sidGenerator=localLongValue(saved.itemPackInfo&&saved.itemPackInfo.sidGenerator||100002);
     u.sceneBagInfo=new rp.SceneBagInfo();u.sceneBagInfo.sceneBag=new rp.SceneStorageBag();u.sceneBagInfo.limitInfo=new rp.SceneLimitInfo();
     u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
     u.newSceneGradeInfo=new rp.NewSceneGradeInfo();
