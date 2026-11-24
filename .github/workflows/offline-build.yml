@@ -80,6 +80,7 @@ jobs:
           python3 work/tools/patch_android.py tmp/offline-build/decoded
           python3 - <<'PY'
           from pathlib import Path
+          import json
           root = Path("tmp/offline-build/decoded")
           old = "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html"
           new = "file:///android_asset/game/index.html"
