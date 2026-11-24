@@ -223,7 +223,7 @@ def main() -> int:
     # res/scene/<id>/<tile>.jpg, so ordinary string scanning cannot discover them.
     scene_refs: set[str] = set()
     for scene_id, width, height in re.findall(
-        r"new e\\.SceneDes\\(\\[(\\d+),(\\d+),(\\d+),", code
+        r"new e\.SceneDes\(\[(\d+),(\d+),(\d+),", code
     ):
         sid, columns, rows = int(scene_id), int(width), int(height)
         scene_refs.update({
