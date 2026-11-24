@@ -221,8 +221,12 @@ def main() -> int:
 
     # Download all literal assets and any additional paths referenced by config.
     downloaded = fetch_batch(queue)
+    # CORE_FILES are fetched in the first batch, before code/config discovery.
+    # Include them too: their atlas JSON files contain the image dependencies
+    # (for example atlas/common.png) required during the first game boot.
+    all_downloaded = sorted(set(first) | set(downloaded))
     atlas_candidates = sorted(
-        item for item in downloaded if item.lower().endswith(".atlas")
+        item for item in all_downloaded if item.lower().endswith(".atlas")
     )
     atlas_refs: set[str] = set()
     for relative in atlas_candidates:
