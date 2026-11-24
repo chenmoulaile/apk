@@ -10,8 +10,19 @@ HOOK = r"""
   "use strict";
   var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
   var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
-  // The original combat loader fetches ani1.atlas for the special "jg" buff
-  // but forgets to register its animation frames before combat starts.
+  // Laya stores atlas frame URLs in Loader.atlasMap, not in the
+  // ordinary getRes cache. The old check used the wrong cache and skipped
+  // frame registration even when ani1.atlas had loaded successfully.
+  function registerOfflineJgAtlasFrames(atlasUrl){
+    var loaderClass=typeof laya!=="undefined"&&laya.net&&laya.net.Loader;
+    var atlasTextures=loaderClass&&loaderClass.getAtlas(atlasUrl);
+    if(!atlasTextures||!atlasTextures.length)return false;
+    Laya.Animation.createFrames(atlasUrl,"jg");
+    var frames=Laya.Animation.framesMap&&Laya.Animation.framesMap.jg;
+    if(!frames||!frames.length)return false;
+    log("local ani1 atlas frames registered",frames.length,atlasTextures.length);
+    return true;
+  }
   try{
     var combatResManager=typeof game!=="undefined"&&game.combat&&game.combat.CombatResManager;
     if(combatResManager&&combatResManager.prototype&&!combatResManager.prototype.__offlineJgAtlasFix){
@@ -19,16 +30,37 @@ HOOK = r"""
       combatResManager.prototype.loadResInCombat=function(){
         var result=originalLoadResInCombat.apply(this,arguments);
         return Promise.resolve(result).then(function(value){
+          var atlasUrl="atlas/combat/ani1.atlas";
           try{
-            var atlasUrl="atlas/combat/ani1.atlas";
-            if(Laya.loader.getRes(atlasUrl)){
-              Laya.Animation.createFrames(atlasUrl,"jg");
-              log("local ani1 atlas frames initialized",atlasUrl);
-            }else{
-              log("local ani1 atlas not present after combat preload",atlasUrl);
-            }
-          }catch(e){log("local ani1 atlas init error",e&&e.stack||e);}
-          return value;
+            if(registerOfflineJgAtlasFrames(atlasUrl))return value;
+            log("local ani1 atlas index missing after combat preload; retrying",atlasUrl);
+            return new Promise(function(resolve){
+              var settled=false;
+              var finish=function(){
+                if(settled)return;
+                settled=true;
+                clearTimeout(timer);
+                try{
+                  if(!registerOfflineJgAtlasFrames(atlasUrl))
+                    log("local ani1 atlas frames unavailable after retry",atlasUrl);
+                }catch(e){log("local ani1 atlas init error",e&&e.stack||e);}
+                resolve(value);
+              };
+              var timer=setTimeout(function(){
+                log("local ani1 atlas retry timed out; continuing battle",atlasUrl);
+                finish();
+              },8000);
+              try{
+                Laya.loader.load(atlasUrl,new Laya.Handler(null,finish),null,"atlas");
+              }catch(e){
+                log("local ani1 atlas retry error",e&&e.stack||e);
+                finish();
+              }
+            });
+          }catch(e){
+            log("local ani1 atlas init error",e&&e.stack||e);
+            return value;
+          }
         });
       };
       combatResManager.prototype.__offlineJgAtlasFix=true;

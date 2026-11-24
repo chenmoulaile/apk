@@ -150,6 +150,14 @@ jobs:
                   missing_runtime.append(f"{atlas_name} (invalid atlas: {exc})")
           if missing_runtime:
               raise SystemExit("missing runtime assets: " + ", ".join(missing_runtime))
+          ani1_path = assets / "atlas/combat/ani1.atlas"
+          ani1_data = json.loads(ani1_path.read_text(encoding="utf-8"))
+          ani1_frames = set(ani1_data.get("frames", {}))
+          expected_ani1_frames = {"jg1.png", "jg2.png", "jg3.png", "jg4.png", "jg5.png", "jg6.png", "jg7.png", "jingu.png"}
+          missing_ani1_frames = sorted(expected_ani1_frames - ani1_frames)
+          if ani1_data.get("meta", {}).get("prefix") != "combat/ani1/" or missing_ani1_frames:
+              raise SystemExit("invalid combat/ani1 atlas metadata or frames: " + ", ".join(missing_ani1_frames))
+          print("Verified combat/ani1 atlas frame definitions:", len(ani1_frames))
           print("Verified runtime atlases and standalone images:", *required_runtime_assets, sep="\\n  ")
           print("Packaged local H5 bytes:", sum(p.stat().st_size for p in assets.rglob("*") if p.is_file()))
           PY

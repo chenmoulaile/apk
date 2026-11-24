@@ -90,6 +90,8 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/items/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/icons/" tmp/offline-test/logcat.txt \
   && ! grep -q "unhandledrejection TypeError" tmp/offline-test/logcat.txt \
+  && grep -q "local ani1 atlas frames registered 8" tmp/offline-test/logcat.txt \
+  && ! grep -q "local ani1 atlas frames unavailable after retry" tmp/offline-test/logcat.txt \
   && ! grep -q "lost skin: combat/ani1/" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
