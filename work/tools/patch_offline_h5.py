@@ -20,25 +20,25 @@ HOOK = r"""
         if(this.obj&&Object.prototype.hasOwnProperty.call(this.obj,group))return assets;
         if(assets.length!==1||assets[0]!=="atlas/"+group+".atlas")return assets;
         try{
-          var ui=typeof View!=="undefined"&&View.uiMap||{},wanted=String(group||"").toLowerCase(),key=null;
-          Object.keys(ui).some(function(k){if(k.toLowerCase()===wanted){key=k;return true;}return false;});
-          if(!key)return assets;
+          var ui=typeof View!=="undefined"&&View.uiMap||{},wanted=String(group||"").toLowerCase();
+          var keys=Object.keys(ui).filter(function(k){var lower=k.toLowerCase();return lower===wanted||lower.indexOf(wanted+"/")===0;});
+          if(!keys.length)return assets;
           var found={};
           (function walk(value){
             if(typeof value==="string"){
               var path=value.trim();
               while(path.charAt(0)==="/")path=path.slice(1);
               var lower=path.toLowerCase();
-              if(lower.endsWith(".png")||lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".webp")){
-                var rooted=["atlas/","res/","scene/","role/","music/"].some(function(prefix){return path.indexOf(prefix)===0;});
-                if(!rooted)path="atlas/"+path;
-                found[path]=true;
+              if(lower.startsWith("atlas/")){path=path.slice(6);lower=path.toLowerCase();}
+              if((lower.endsWith(".png")||lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".webp"))&&lower.indexOf(wanted+"/")===0){
+                found["atlas/"+path]=true;
               }
             }else if(Array.isArray(value))value.forEach(walk);
             else if(value&&typeof value==="object")Object.keys(value).forEach(function(k){walk(k);walk(value[k]);});
-          })(ui[key]);
+          });
+          keys.forEach(function(key){walk(ui[key]);});
           var direct=Object.keys(found);
-          if(direct.length){log("local dynamic UI group",group,key,direct.length);return direct;}
+          if(direct.length){log("local dynamic UI group",group,keys.join(","),direct.length);return direct;}
         }catch(e){log("dynamic UI group fallback",group,e&&e.message||e);}
         return assets;
       };
