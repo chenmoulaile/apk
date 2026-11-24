@@ -39,17 +39,17 @@ sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-after.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-after.png tmp/offline-test/offline-pet-levelup-after.png > /dev/null 2>&1
 # Close the strengthen overlay and open the storage replacement picker.
-timeout 10s adb shell input tap 1024 150 > tmp/offline-test/pet-strengthen-close.txt 2>&1
+timeout 10s adb shell input tap 1024 177 > tmp/offline-test/pet-strengthen-close.txt 2>&1
 sleep 3
 timeout 20s adb shell screencap -p /sdcard/offline-pet-after-growup-close.png
 timeout 30s adb pull /sdcard/offline-pet-after-growup-close.png tmp/offline-test/offline-pet-after-growup-close.png > /dev/null 2>&1
 sleep 5
-timeout 10s adb shell input tap 840 320 > tmp/offline-test/pet-replace-tap.txt 2>&1
+timeout 10s adb shell input tap 980 374 > tmp/offline-test/pet-replace-tap.txt 2>&1
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-storage-screen.png
 timeout 30s adb pull /sdcard/offline-pet-storage-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
 # Close the modal replacement picker using its visible close button, then return to Adventure.
-timeout 10s adb shell input tap 1024 150 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
+timeout 10s adb shell input tap 1008 254 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-pet-closed-screen.png
 timeout 30s adb pull /sdcard/offline-pet-closed-screen.png tmp/offline-test/offline-pet-closed-screen.png > /dev/null 2>&1
