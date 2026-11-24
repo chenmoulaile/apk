@@ -31,6 +31,10 @@ CORE_FILES = [
     "atlas/common.atlas",
     "atlas/common2.atlas",
     "atlas/commonAni.atlas",
+    # Runtime-loaded resources can be absent from literal JS path scans.
+    "atlas/combat/animation0.atlas",
+    "atlas/combat/frmBattle.atlas",
+    "atlas/mainUI/laba02_bg.png",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
@@ -234,17 +238,34 @@ def main() -> int:
             )
             try:
                 parsed = json.loads(text_config)
+                image_suffixes = {".png", ".jpg", ".jpeg", ".webp"}
+                ui_skin_refs: set[str] = set()
+
                 def walk(value: object) -> None:
                     if isinstance(value, str):
                         queue.update(path_candidates(value))
+                        # Laya UI JSON stores many skins relative to atlas/,
+                        # e.g. Checkpoint/offLineGiftPanel/bg_gjsy.png.
+                        normalized = value.strip().lstrip("/")
+                        candidate = PurePosixPath(normalized)
+                        if (
+                            "/" in normalized
+                            and candidate.suffix.lower() in image_suffixes
+                            and not normalized.startswith(("atlas/", "res/", "scene/", "http://", "https://"))
+                            and ".." not in candidate.parts
+                        ):
+                            ui_skin_refs.add("atlas/" + normalized)
                     elif isinstance(value, list):
                         for child in value:
                             walk(child)
                     elif isinstance(value, dict):
                         for key, child in value.items():
-                            queue.update(path_candidates(key))
+                            walk(key)
                             walk(child)
+
                 walk(parsed)
+                queue.update(ui_skin_refs)
+                manifest["ui_skin_asset_candidates"] = len(ui_skin_refs)
                 # Battle sprites and skill effects are looked up dynamically from
                 # the config tables and cannot be discovered by scanning code.js.
                 pet_rows = parsed.get("cdc_pet_conf", [])
