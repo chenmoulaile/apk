@@ -85,6 +85,19 @@ HOOK = r"""
       groupProto.__offlineOptionalAtlasFix=true;
     }
   }catch(e){log("optional pet atlas group patch",e&&e.stack||e);}
+  // The archived server no longer has upgradeLight/1..9.png. The effect is
+  // cosmetic; suppress its animation instead of requesting nine dead URLs.
+  try{
+    var UpgradeLight=typeof Common!=="undefined"&&Common.UpgradeLight;
+    if(UpgradeLight&&UpgradeLight.prototype&&!UpgradeLight.prototype.__offlineNoUpgradeLight){
+      UpgradeLight.prototype.play=function(){
+        this.visible=false;
+        log("local upgrade flash animation skipped: original frames unavailable");
+        return this;
+      };
+      UpgradeLight.prototype.__offlineNoUpgradeLight=true;
+    }
+  }catch(e){log("optional upgrade flash patch",e&&e.stack||e);}
   var read=function(){
     try{
       var o=JSON.parse(localStorage.getItem(KEY)||"null");

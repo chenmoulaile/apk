@@ -100,6 +100,7 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
 if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.txt \
   && grep -q "local pet seed score 3101 48300" tmp/offline-test/logcat.txt \
+  && grep -q "local upgrade flash animation skipped: original frames unavailable" tmp/offline-test/logcat.txt \
   && grep -q "local pet growup 0 1->2 hp 14300 attack 2420 defense 1320 score 53130" tmp/offline-test/logcat.txt \
   && grep -q "local scene reward actions 103:4000002,1|103:1001019,10|100:200|101:20000" tmp/offline-test/logcat.txt \
   && grep -q "local point item reward 59 1000 1000" tmp/offline-test/logcat.txt \
