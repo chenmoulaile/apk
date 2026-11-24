@@ -59,10 +59,24 @@ jobs:
         shell: bash
         run: |
           mkdir -p tmp/offline-build dist
-          python3 work/recovered/h5_snapshot.py \
+          if ! python3 work/recovered/h5_snapshot.py \
             --output tmp/offline-build/game \
             --max-total-mib 700 \
-            --workers 16 | tee tmp/offline-build/snapshot-summary.json
+            --workers 16 | tee tmp/offline-build/snapshot-summary.json; then
+            echo "Live H5 snapshot failed; trying the last verified offline APK artifact as a resource cache."
+            mkdir -p tmp/offline-build/cache-artifact tmp/offline-build/cache-apk
+            GH_TOKEN="${{ github.token }}" gh run download 45385982857 \
+              --repo "${{ github.repository }}" \
+              --name offline-apk-test-94 \
+              --dir tmp/offline-build/cache-artifact
+            CACHED_APK="$(find tmp/offline-build/cache-artifact -name 'super-spirit-ball-offline.apk' -print -quit)"
+            test -n "$CACHED_APK"
+            unzip -q "$CACHED_APK" 'assets/game/*' -d tmp/offline-build/cache-apk
+            test -s tmp/offline-build/cache-apk/assets/game/code.js
+            mkdir -p tmp/offline-build/game
+            cp -a tmp/offline-build/cache-apk/assets/game/. tmp/offline-build/game/
+            echo "Restored cached H5 assets from the last verified APK."
+          fi
           test -s tmp/offline-build/game/index.html
           test -s tmp/offline-build/game/code.js
           test -s tmp/offline-build/game/zip.txt
@@ -211,6 +225,8 @@ jobs:
           path: |
             dist/
             tmp/offline-test/
+            tmp/offline-build/snapshot-summary.json
+            tmp/offline-build/snapshot-manifest.json
             tmp/offline-build/native-network-dialog-patch.txt
             tmp/offline-build/snapshot-manifest.json
           if-no-files-found: warn
