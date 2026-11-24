@@ -24,13 +24,12 @@ timeout 10s adb shell input tap 650 790 > tmp/offline-test/map-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-move-screen.png
 timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-move-screen.png > /dev/null 2>&1
-# The Quick Battle shortcut is in the upper-right row above the bottom tabs.
-# The 720x1280 game canvas is scaled to the 1080x1920 emulator display.
-timeout 10s adb shell input tap 1010 1640 > tmp/offline-test/quick-battle-tap.txt 2>&1
+# Quick Battle is the right-hand shortcut above the bottom navigation in the captured 1080x1920 frame.
+timeout 10s adb shell input tap 850 1450 > tmp/offline-test/quick-battle-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-quick-combat-panel.png
 timeout 30s adb pull /sdcard/offline-quick-combat-panel.png tmp/offline-test/offline-quick-combat-panel.png > /dev/null 2>&1
-# Quick Combat panel's yellow claim button is centered at logical (336,806).
+# The claim button is at local (336,806) inside the panel box (25,164), scaled 1.5x.
 timeout 10s adb shell input tap 504 1209 > tmp/offline-test/claim-quick-battle-tap.txt 2>&1
 sleep 20
 timeout 20s adb shell screencap -p /sdcard/offline-battle-screen.png
