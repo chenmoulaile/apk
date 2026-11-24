@@ -25,7 +25,7 @@
 - 大小：约 120.2 MiB
 - SHA-256：`19f28131dd0ba42161b38e0d2326b52edc2f1e31786f3fed215795595cccdffa`
 
-可从 [Actions #106 → Artifacts](https://github.com/chenmoulaile/apk/actions/runs/45405123352) 下载 APK。下载后可校验：
+可从 [Actions #109 → Artifacts](https://github.com/chenmoulaile/apk/actions/runs/45416971068) 下载 APK。下载后可校验：
 
 ```bash
 sha256sum super-spirit-ball-offline.apk
@@ -55,7 +55,7 @@ APK 使用本地测试签名，与原版签名不同。安装前需要先卸载�
 
 ## 当前回归状态
 
-- [Actions #109](https://github.com/chenmoulaile/apk/actions/runs/45416971068)：**PASS**，已验证精灵仓库弹窗、18 个编队槽位、本地仓库读取、主线第 2–4 关和冷启动存档。
+- [Actions #109](https://github.com/chenmoulaile/apk/actions/runs/45416971068)：**PASS**，已验证精灵仓库弹窗、18 个编队槽位、本地仓库读取、主线第 2–6 关和冷启动存档。
 - [Actions #108](https://github.com/chenmoulaile/apk/actions/runs/45407987560)：仓库与主线第 2–6 关的模拟器行为均成功；工作流只因旧金币断言写成 1,099,500，而实际第 6 关存档为 1,109,500，故结论为 FAIL。
-- [Actions #109](https://github.com/chenmoulaile/apk/actions/runs/45416971068)：已修正两处金币断言，正在重跑完整构建与断网模拟器回归。
+- [Actions #110](https://github.com/chenmoulaile/apk/actions/runs/45419753231)：正在验证完整 JSON 存档降级路径、18 个编队槽位恢复和动态工件 README。
 
