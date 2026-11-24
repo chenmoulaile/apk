@@ -72,6 +72,10 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/combat/spirits/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/CombatFormation/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/Checkpoint/MainChallenge/" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/CombatFormation.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/Checkpoint/MainChallenge.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/Checkpoint/Result.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/Checkpoint/offLineGiftPanel.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
   && test -s tmp/offline-test/offline-move-screen.png \
