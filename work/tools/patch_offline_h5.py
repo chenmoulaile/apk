@@ -93,7 +93,7 @@ HOOK = r"""
     s.mp=50;s.buffMap={};return s;
   }
   function combatPlayer(id,name,petId,level){
-    var p=new rp.CombatPlayer();p.id=long(id);p.name=name;p.level=level||1;p.sex=2;
+    var p=new rp.CombatPlayer();p.id=(Number(id)===0?0:long(id));p.name=name;p.level=level||1;p.sex=2;
     p.commuSkillId=0;p.warCmdLevel=0;p.warCmdSkill=0;p.godSkill=false;
     p.partner=[combatSpirit(0,1,0)];p.spirits=[];
     for(var i=0;i<6;i++)p.spirits.push(i===0?combatSpirit(petId,level,16000):combatSpirit(0,1,0));
