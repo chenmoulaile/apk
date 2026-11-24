@@ -299,8 +299,8 @@ HOOK = r"""
     if(!u)return null;
     var info=u.newTaskInfo;
     if(!info||typeof info!=="object")info=u.newTaskInfo=new rp.DBNewTaskInfo();
-    if(offlineDayReset||!info.dailyTask)info.dailyTask=new rp.NewDailyTask();
-    if(offlineWeekReset||!info.weekTask)info.weekTask=new rp.NewWeekTask();
+    if(offlineDayReset||!info.dailyTask){info.dailyTask=new rp.NewDailyTask();offlineDayReset=false;}
+    if(offlineWeekReset||!info.weekTask){info.weekTask=new rp.NewWeekTask();offlineWeekReset=false;}
     if(!info.training)info.training=new rp.TaskTrainning();
     if(!info.mainTask)info.mainTask=new rp.NewMainTask();
     if(!info.dailyTask.tasks)info.dailyTask.tasks={};
@@ -1208,6 +1208,7 @@ HOOK = r"""
 OVERLAY = """
 <style id="offline-menu-style">
 #offline-menu-button{position:fixed;z-index:2147483646;right:100px;top:5px;padding:4px 6px;border-radius:8px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:11px sans-serif}
+#offline-task-button{position:fixed;z-index:2147483646;right:10px;top:5px;padding:4px 8px;border-radius:8px;background:rgba(17,25,46,.92);border:1px solid #ffe08a;color:#fff;font:12px sans-serif}
 #offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:42px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
 #offline-menu-panel h3{margin:0 0 8px;font-size:16px;color:#8de2ff}
 #offline-menu-panel .stat{font-size:12px;line-height:1.6;margin-bottom:8px;color:#d6edff}
@@ -1215,11 +1216,13 @@ OVERLAY = """
 #offline-menu-panel .danger{background:#9e3946}.offline-note{font-size:11px;color:#ffdd9c;margin-top:7px;line-height:1.4}
 </style>
 <div id="offline-menu-button">离线菜单</div>
+<div id="offline-task-button">任务</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
 <button data-act="tasks">打开任务面板</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
-(function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat");if(!b||!p)return;
+(function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button");if(!b||!p)return;
+if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
 p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
