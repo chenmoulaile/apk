@@ -25,12 +25,12 @@ sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-move-screen.png
 timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-move-screen.png > /dev/null 2>&1
 # Open the Spirit tab and verify the offline pet-storage RPC returns all 36 pack slots.
-timeout 10s adb shell input tap 350 1630 > tmp/offline-test/pet-tab-tap.txt 2>&1
+timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-tap.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-pet-storage-screen.png
 timeout 30s adb pull /sdcard/offline-pet-storage-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
 # Return to the main-city tab before continuing the main challenge scenario.
-timeout 10s adb shell input tap 65 1630 > tmp/offline-test/main-tab-return.txt 2>&1
+timeout 10s adb shell input tap 80 1825 > tmp/offline-test/main-tab-return.txt 2>&1
 sleep 5
 # Main Challenge button center: logical (355,1078), scaled to 1080x1920.
 timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
