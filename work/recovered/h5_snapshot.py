@@ -238,6 +238,37 @@ def main() -> int:
         )
     queue.update(scene_refs)
 
+    # res/ui.json stores a second class of texture references relative to atlas/.
+    # Those paths are not necessarily present in code.js or .atlas metadata.
+    ui_config = output / "res/ui.json"
+    if ui_config.is_file():
+        try:
+            ui_data = json.loads(ui_config.read_text(encoding="utf-8"))
+            ui_refs: set[str] = set()
+            image_suffixes = {".png", ".jpg", ".jpeg", ".webp"}
+            def collect_ui_images(value: object) -> None:
+                if isinstance(value, str):
+                    normalized = value.lstrip("/")
+                    candidate = PurePosixPath(normalized)
+                    if (
+                        "/" in normalized
+                        and candidate.suffix.lower() in image_suffixes
+                        and not normalized.startswith(("atlas/", "res/", "scene/"))
+                        and ".." not in candidate.parts
+                    ):
+                        ui_refs.add("atlas/" + normalized)
+                elif isinstance(value, list):
+                    for child in value:
+                        collect_ui_images(child)
+                elif isinstance(value, dict):
+                    for child in value.values():
+                        collect_ui_images(child)
+            collect_ui_images(ui_data)
+            queue.update(ui_refs)
+            manifest["ui_config_asset_candidates"] = len(ui_refs)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            manifest["errors"].append({"path": "res/ui.json", "error": f"UI asset scan failed: {exc}"})
+
     # Download all literal assets and any additional paths referenced by config.
     downloaded = fetch_batch(queue)
     # CORE_FILES are fetched in the first batch, before code/config discovery.
