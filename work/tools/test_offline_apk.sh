@@ -34,7 +34,7 @@ sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
 timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
 # Close the modal replacement picker using its visible close button, then return to Adventure.
-timeout 10s adb shell input tap 509 254 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
+timeout 10s adb shell input tap 975 245 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-pet-closed-screen.png
 timeout 30s adb pull /sdcard/offline-pet-closed-screen.png tmp/offline-test/offline-pet-closed-screen.png > /dev/null 2>&1
