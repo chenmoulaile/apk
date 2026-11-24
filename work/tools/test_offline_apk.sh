@@ -65,12 +65,13 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
-  && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: role/1/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/combat/skills/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/combat/spirits/" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/CombatFormation/" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/Checkpoint/MainChallenge/" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
   && test -s tmp/offline-test/offline-move-screen.png \
