@@ -16,6 +16,26 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable
 
 DEFAULT_BASE = "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/"
+# The first offline playability pass deliberately includes the asset groups used
+# by the boot flow, main city, main PvE challenge, battle, and result/reward UI.
+# The full zip.txt maps over 7k optional event/ranking skins; fetching all of them
+# during the first APK build adds minutes without improving the core offline loop.
+OFFLINE_UI_SKIN_PREFIXES = (
+    "mainui/",
+    "checkpoint/mainchallenge/",
+    "checkpoint/result/",
+    "checkpoint/quickcombat/",
+    "checkpoint/quickchallenge/",
+    "checkpoint/quickchallengeend/",
+    "checkpoint/offlinegiftpanel/",
+    "combatformation/",
+    "combat/",
+)
+
+def is_offline_ui_skin(path: str) -> bool:
+    return path.lower().startswith(OFFLINE_UI_SKIN_PREFIXES)
+
+
 CORE_FILES = [
     "index.html",
     "code.js",
@@ -253,6 +273,7 @@ def main() -> int:
                             and candidate.suffix.lower() in image_suffixes
                             and not normalized.startswith(("atlas/", "res/", "scene/", "http://", "https://"))
                             and ".." not in candidate.parts
+                            and is_offline_ui_skin(normalized)
                         ):
                             ui_skin_refs.add("atlas/" + normalized)
                     elif isinstance(value, list):
@@ -365,6 +386,7 @@ def main() -> int:
                         and candidate.suffix.lower() in image_suffixes
                         and not normalized.startswith(("atlas/", "res/", "scene/"))
                         and ".." not in candidate.parts
+                        and is_offline_ui_skin(normalized)
                     ):
                         ui_refs.add("atlas/" + normalized)
                 elif isinstance(value, list):
