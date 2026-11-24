@@ -68,6 +68,23 @@ HOOK = r"""
   }catch(e){log("offline combat atlas patch",e&&e.stack||e);}
   window.addEventListener("unhandledrejection",function(e){log("unhandledrejection",e.reason&&e.reason.stack||e.reason);});
   window.addEventListener("error",function(e){log("window error",e.message,e.filename,e.lineno,e.error&&e.error.stack);});
+  // The original pet panels reference loose PNGs but never shipped these
+  // optional atlas bundles. Skip the empty bundles; their PNGs are packaged
+  // from zip.txt and remain available for direct loading.
+  try{
+    var groupProto=typeof ResGroupConfig!=="undefined"&&ResGroupConfig.prototype;
+    if(groupProto&&typeof groupProto.getAssetList==="function"&&!groupProto.__offlineOptionalAtlasFix){
+      var getAssetList=groupProto.getAssetList;
+      groupProto.getAssetList=function(name){
+        if(name==="ZPower"||name==="upgradeLight"){
+          log("local optional atlas group skipped",name);
+          return [];
+        }
+        return getAssetList.apply(this,arguments);
+      };
+      groupProto.__offlineOptionalAtlasFix=true;
+    }
+  }catch(e){log("optional pet atlas group patch",e&&e.stack||e);}
   var read=function(){
     try{
       var o=JSON.parse(localStorage.getItem(KEY)||"null");
@@ -692,8 +709,8 @@ HOOK = r"""
 
 OVERLAY = """
 <style id="offline-menu-style">
-#offline-menu-button{position:fixed;z-index:2147483646;right:10px;top:10px;padding:8px 12px;border-radius:10px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:14px sans-serif}
-#offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:52px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
+#offline-menu-button{position:fixed;z-index:2147483646;right:10px;top:118px;padding:8px 12px;border-radius:10px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:14px sans-serif}
+#offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:160px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
 #offline-menu-panel h3{margin:0 0 8px;font-size:16px;color:#8de2ff}
 #offline-menu-panel .stat{font-size:12px;line-height:1.6;margin-bottom:8px;color:#d6edff}
 #offline-menu-panel button{width:100%;margin:4px 0;padding:8px;border:0;border-radius:8px;background:#287bb6;color:#fff;font-size:13px}

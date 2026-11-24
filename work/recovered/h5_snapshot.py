@@ -31,6 +31,10 @@ OFFLINE_UI_SKIN_PREFIXES = (
     "combatformation/",
     "combat/",
     "newbag/",
+    # Dynamic pet strengthening panels reference these loose images via zip.txt.
+    "pokemon/",
+    "zpower/",
+    "upgradelight/",
 )
 
 def is_offline_ui_skin(path: str) -> bool:
