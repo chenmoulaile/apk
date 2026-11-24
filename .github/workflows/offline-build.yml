@@ -108,6 +108,14 @@ jobs:
               "atlas/mainUI/laba02_bg.png",
               "atlas/Checkpoint/offLineGiftPanel/bg_gjsy.png",
               "atlas/Checkpoint/offLineGiftPanel/btn.png",
+              "atlas/Checkpoint/MainChallenge/bg1.png",
+              "atlas/Checkpoint/MainChallenge/bg2.png",
+              "atlas/Checkpoint/MainChallenge/bg3.png",
+              "atlas/Checkpoint/MainChallenge/bg4.png",
+              "atlas/Checkpoint/MainChallenge/btn.png",
+              "atlas/CombatFormation/0.png",
+              "atlas/CombatFormation/11.png",
+              "atlas/CombatFormation/17.png",
           ]
           missing_runtime = [name for name in required_runtime_assets if not (assets / name).is_file()]
           if missing_runtime:
