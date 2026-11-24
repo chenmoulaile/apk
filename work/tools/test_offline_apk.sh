@@ -33,7 +33,11 @@ timeout 10s adb shell input tap 975 375 > tmp/offline-test/pet-replace-tap.txt 2
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
 timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
-# Restore the Adventure tab before the existing challenge flow.
+# Close the modal replacement picker using its visible close button, then return to Adventure.
+timeout 10s adb shell input tap 509 254 > tmp/offline-test/pet-picker-close-tap.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-pet-closed-screen.png
+timeout 30s adb pull /sdcard/offline-pet-closed-screen.png tmp/offline-test/offline-pet-closed-screen.png > /dev/null 2>&1
 timeout 10s adb shell input tap 535 1835 > tmp/offline-test/adventure-tab-return.txt 2>&1
 sleep 5
 # Main Challenge button center: logical (355,1078), scaled to 1080x1920.
@@ -85,6 +89,7 @@ FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
 if grep -q "local pet storage loaded 1 18" tmp/offline-test/logcat.txt \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
   && test -s tmp/offline-test/offline-pet-replace-screen.png \
+  && test -s tmp/offline-test/offline-pet-closed-screen.png \
   && grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
