@@ -6,13 +6,13 @@ on:
     paths:
       - ".github/workflows/offline-build.yml"
       - "work/tools/patch_offline_h5.py"
-      - "work/tools/h5_snapshot.py"
+      - "work/recovered/h5_snapshot.py"
       - "work/tools/test_offline_apk.sh"
       - "com.ruirui.cjjlq.apk"
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: offline-build-${{ github.ref }}
