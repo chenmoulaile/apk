@@ -27,8 +27,8 @@ timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-mo
 # Open the Spirit page and verify the local pet's base attributes.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-tap.txt 2>&1
 sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-pet-main-screen.png
 timeout 30s adb pull /sdcard/offline-pet-main-screen.png tmp/offline-test/offline-pet-main-screen.png > /dev/null 2>&1
-timeout 30s adb pull /sdcard/offline-pet-main-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
 # Open Level Up, request one real config-priced growth step, then capture the result.
 timeout 10s adb shell input tap 160 1623 > tmp/offline-test/pet-levelup-tap.txt 2>&1
 sleep 6
