@@ -318,34 +318,56 @@ HOOK = r"""
     current=u;var index=Number(req&&req.index),packs=normalizePetPack(u);
     if(!isFinite(index)||Math.floor(index)!==index||index<0||index>=18||!packs[index]||!packs[index].pet){r.ret=1;return r;}
     var pet=packs[index].pet,oldLevel=Number(pet.level)||1,bulk=Number(req&&req.type)===1,changed=0;
-    var spiritCfg=null,starDes=null;
+    var spiritCfg=null,starDes=null,starBonus=0,insightCfg=null;
     try{
       spiritCfg=GC.G().spiritConfig.getDes(pet.id);
-      GC.G().PetStarConf.getDesList().some(function(x){if(x.templateId===spiritCfg.starTemplateId&&x.star===Number(pet.starLevel||spiritCfg.quality)){starDes=x;return true;}return false;});
-    }catch(_){}
+      GC.G().PetStarConf.getDesList().some(function(x){
+        if(Number(x.templateId)===Number(spiritCfg.starTemplateId)&&Number(x.star)===Number(pet.starLevel||spiritCfg.quality)){
+          starDes=x;starBonus=Number(x.starAddVal)||0;return true;
+        }
+        return false;
+      });
+      pet.insight=Number(pet.insight)||1010;
+      insightCfg=GC.G().petInsightConfig.getDes(pet.insight);
+    }catch(e){log("local pet config lookup",e&&e.stack||e);}
+    if(!spiritCfg){r.ret=1;log("local pet config missing",pet.id);return r;}
+    pet.assitAttr=pet.assitAttr||{};
     var levelLimit=Number(starDes&&starDes.levelLimit)||100;
     if(!u.petCrystalInfo)u.petCrystalInfo=new rp.PetCrystalInfo();
+    function calcOfflinePetStats(level){
+      // Mirrors util.USprite.estimateSpiritAttr for the offline profile's
+      // no-equipment/no-assistance baseline, while retaining wash/insight
+      // and assistant bonuses stored on the PetEntry.
+      var levelValue=Number(pet.crystalLevel)||Number(level)||1;
+      var levelFactor=.9+.1*levelValue;
+      var insightHp=Number(insightCfg&&insightCfg.addHp)||0;
+      var insightAttack=Number(insightCfg&&insightCfg.addAttack)||0;
+      var insightDefense=Number(insightCfg&&insightCfg.addDefense)||0;
+      var assist=pet.assitAttr||{};
+      var hp=(Number(spiritCfg.hp)||0)+(Number(pet.washHp)||0);
+      hp=hp*levelFactor*(1+starBonus/10000)*(1+insightHp/10000+(Number(assist[12])||0)/10000);
+      hp=Math.round(hp*(10000+(Number(pet.panelHp)||0))/10000);
+      var attack=(Number(spiritCfg.attack)||0)+(Number(pet.washAttack)||0);
+      attack=Math.round(attack*(1+starBonus/10000)*levelFactor*(1+insightAttack/10000+(Number(assist[13])||0)/10000));
+      var defense=(Number(spiritCfg.defense)||0)+(Number(pet.washDefense)||0);
+      defense=Math.round(defense*levelFactor*(1+starBonus/10000)*(1+insightDefense/10000+(Number(assist[14])||0)/10000));
+      return {hp:hp,attack:attack,defense:defense};
+    }
     while(changed<120){
       var nextLevel=Number(pet.level||1)+1,nextCfg=GC.G().petLevelConfig.getDes(nextLevel);
       if(!nextCfg||Number(pet.level)>=levelLimit)break;
       if(Number(pet.level)>=120&&Number(pet.level)>=Number(u.petCrystalInfo.crystalLevel||0)+40)break;
       if(!localPetLevelCostAvailable(u,nextCfg))break;
       consumeLocalPetLevelCost(u,nextCfg);
-      var oldCfg=GC.G().petLevelConfig.getDes(Number(pet.level)||1);
-      var oldHp=Number(pet.hp)||Number(spiritCfg&&spiritCfg.hp)||0;
-      var oldAttack=Number(pet.attack)||Number(spiritCfg&&spiritCfg.attack)||0;
-      var oldDefense=Number(pet.defense)||Number(spiritCfg&&spiritCfg.defense)||0;
-      function scaled(value,base,strength){
-        var before=Number(oldCfg&&oldCfg[strength])||10000,after=Number(nextCfg[strength])||before;
-        return Math.round((Number(value)||Number(base)||0)*after/before);
-      }
-      pet.hp=long(scaled(oldHp,spiritCfg&&spiritCfg.hp,"hpStrength"));
-      pet.attack=long(scaled(oldAttack,spiritCfg&&spiritCfg.attack,"attackStrength"));
-      pet.defense=long(scaled(oldDefense,spiritCfg&&spiritCfg.defense,"defenseStrength"));
+      var oldHp=Number(pet.hp)||Number(spiritCfg.hp)||0;
+      var oldAttack=Number(pet.attack)||Number(spiritCfg.attack)||0;
+      var oldDefense=Number(pet.defense)||Number(spiritCfg.defense)||0;
       pet.level=nextLevel;
+      var stats=calcOfflinePetStats(nextLevel);
+      pet.hp=long(stats.hp);pet.attack=long(stats.attack);pet.defense=long(stats.defense);
       var score=Number(pet.fightScore)||0;
-      score+=1.1*(Number(pet.hp)-oldHp)+10*(Number(pet.attack)-oldAttack)+10*(Number(pet.defense)-oldDefense);
-      pet.fightScore=long(Math.round(score));
+      score=Math.floor(score+1.1*(stats.hp-oldHp)+10*(stats.attack-oldAttack)+10*(stats.defense-oldDefense));
+      pet.fightScore=long(score);
       changed++;
       if(!bulk)break;
     }
