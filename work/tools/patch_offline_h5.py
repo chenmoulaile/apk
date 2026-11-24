@@ -10,6 +10,8 @@ HOOK = r"""
   "use strict";
   var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
   var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
+  window.addEventListener("unhandledrejection",function(e){log("unhandledrejection",e.reason&&e.reason.stack||e.reason);});
+  window.addEventListener("error",function(e){log("window error",e.message,e.filename,e.lineno,e.error&&e.error.stack);});
   var read=function(){
     try{
       var o=JSON.parse(localStorage.getItem(KEY)||"null");
@@ -23,9 +25,22 @@ HOOK = r"""
   };
   var saved=read()||{}, current=null;
   var long=function(v){try{if($util.Long)return $util.Long.fromString(String(v),true);}catch(e){}return Number(v)||0;};
+  function currentCardSeason(){
+    try{
+      var a=GC.G().CARD_COLLECT_SEASON_CONF.getDesList(),now=Date.now()/1000,chosen=null;
+      for(var i=0;i<a.length;i++)if(a[i].startTime<=now&&now<a[i].endTime){chosen=a[i];break;}
+      return chosen?chosen.seasonId:(a.length?a[a.length-1].seasonId:1);
+    }catch(e){log("season fallback",e);return 19;}
+  }
   function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
   function userInfo(){
-    if(saved.restored&&saved.restored.baseInfo){current=saved.restored;return current;}
+    if(saved.restored&&saved.restored.baseInfo){
+      current=saved.restored;
+      if(!current.collectCardInfo)current.collectCardInfo=new rp.CardCollectInfo();
+      if(!current.collectCardInfo.nowSeason)current.collectCardInfo.nowSeason=currentCardSeason();
+      if(!current.petRoomInfo)current.petRoomInfo=new rp.PetRoomInfo();
+      return current;
+    }
     var u=new rp.UserDataInfo(), b=new rp.UserBaseInfo(), old=saved.userInfo&&saved.userInfo.baseInfo||{};
     b.userId=long(old.userId||UID);b.name=old.name||NAME;b.sex=old.sex||2;b.level=Math.max(1,Number(old.level)||1);
     b.vipLevel=Number(old.vipLevel)||0;b.zoneId=1;b.sceneLevel=Math.max(1,Number(old.sceneLevel)||1);
@@ -42,6 +57,7 @@ HOOK = r"""
     u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
     u.newSceneGradeInfo=new rp.NewSceneGradeInfo();u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
     u.growthFound=new rp.GrowthFound();
+    u.collectCardInfo=new rp.CardCollectInfo();u.collectCardInfo.nowSeason=currentCardSeason();
     var typed={
       teamPkEffectInfo:"PkAttrInfo",relicInfo:"UserRelicInfo",shopInfo:"ShopInfo",hallInfo:"DBHallInfo",
       monopolyInfo:"DBMonopolyInfo",assitPetPackInfo:"AssitPetPackInfo",treasureInfo:"DBTreasureInfo",
@@ -177,8 +193,10 @@ def patch(root: Path) -> None:
         raise SystemExit("index.html/code.js missing")
     html=index.read_text(encoding="utf-8",errors="replace")
     html=html.replace('<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>','')
+    bridge='<script>window.CallbackFromAndroid=window.CallbackFromAndroid||function(){};window.CallbackFromIOS=window.CallbackFromIOS||function(){};</script>'
+    if 'window.CallbackFromAndroid=window.CallbackFromAndroid||function(){}' not in html:
+        html=html.replace('<head>','<head>\\n'+bridge,1)
     html=html.replace("https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/libQuickSDKH5_To_Client.js","./libQuickSDKH5_To_Client.js")
-    html=html.replace('<script src="./libQuickSDKH5_To_Client.js"></script>','<script>window.CallbackFromAndroid=window.CallbackFromAndroid||function(){};window.CallbackFromIOS=window.CallbackFromIOS||function(){};</script>\\n<script src="./libQuickSDKH5_To_Client.js"></script>')
     if "offline-menu-button" not in html:
         html=html.replace("</body>",OVERLAY+"\n</body>")
     index.write_text(html,encoding="utf-8")
