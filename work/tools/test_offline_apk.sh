@@ -24,13 +24,17 @@ timeout 10s adb shell input tap 650 790 > tmp/offline-test/map-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-move-screen.png
 timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-move-screen.png > /dev/null 2>&1
-# Open the Spirit tab and verify the offline pet-storage RPC returns all 36 pack slots.
+# Open the Spirit page, then open its replacement selector to request local pet storage.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-tap.txt 2>&1
 sleep 8
-timeout 20s adb shell screencap -p /sdcard/offline-pet-storage-screen.png
-timeout 30s adb pull /sdcard/offline-pet-storage-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
-# Return to the main-city tab before continuing the main challenge scenario.
-timeout 10s adb shell input tap 80 1825 > tmp/offline-test/main-tab-return.txt 2>&1
+timeout 20s adb shell screencap -p /sdcard/offline-pet-main-screen.png
+timeout 30s adb pull /sdcard/offline-pet-main-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 975 375 > tmp/offline-test/pet-replace-tap.txt 2>&1
+sleep 10
+timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
+timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
+# Restore the Adventure tab before the existing challenge flow.
+timeout 10s adb shell input tap 535 1835 > tmp/offline-test/adventure-tab-return.txt 2>&1
 sleep 5
 # Main Challenge button center: logical (355,1078), scaled to 1080x1920.
 timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
@@ -80,12 +84,15 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
 if grep -q "local pet storage loaded 1 18" tmp/offline-test/logcat.txt \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
+  && test -s tmp/offline-test/offline-pet-replace-screen.png \
   && grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && grep -q "local save restored 1030000 4" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
+  && ! grep -q "Failed to load: atlas/NewBag.atlas" \
+  && ! grep -q "Uncaught (in promise) undefined" \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: role/1/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/combat/skills/" tmp/offline-test/logcat.txt \

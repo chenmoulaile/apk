@@ -30,6 +30,7 @@ OFFLINE_UI_SKIN_PREFIXES = (
     "checkpoint/offlinegiftpanel/",
     "combatformation/",
     "combat/",
+    "newbag/",
 )
 
 def is_offline_ui_skin(path: str) -> bool:
@@ -64,6 +65,7 @@ CORE_FILES = [
     "atlas/CombatFormation.atlas",
     "atlas/combat/result.atlas",
     "atlas/combat/communicator.atlas",
+    "atlas/NewBag.atlas",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
