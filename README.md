@@ -1,42 +1,55 @@
 # 超级精灵球离线化研究
 
-> 当前状态：**核心离线主线 PvE 已通过 Android 30 断网模拟器验收，并通过进程冷重启后的存档恢复测试。** 已验证稳定 APK 对应 GitHub Actions run [45329870950](https://github.com/chenmoulaile/apk/actions/runs/45329870950)，结果为 `OFFLINE_SCENE_TEST=PASS`。
+> 当前状态：**离线主线 PvE 正在继续验证，尚未达到完整游戏复原或正式发布标准。**
+>
+> 最新代码提交：`313fac2`。GitHub Actions 离线构建/断网模拟器测试 #90 正在运行：
+> [Build and test offline Android APK #90](https://github.com/chenmoulaile/apk/actions/runs/45380567773)。
 
-## 已验证能力
+## 已经由模拟器日志实测的能力
 
-- APK 将原远程 H5 入口改为 `file:///android_asset/game/index.html`，游戏核心资源随 APK 本地加载。
-- 在关闭 Wi-Fi 和移动数据后，能够初始化本地账号、进入主城并移动角色。
-- 能打开主线挑战、阵容和战斗结算界面。
-- 本地 PvE 响应能返回胜利、发放金币并推进关卡；测试从关卡 1 连续推进到关卡 4，金币增加到 1,030,000。
-- 测试随后强制结束 APK 进程，并在保持断网的情况下重新启动；Logcat 确认恢复了 `1,030,000` 金币和第 `4` 关，重启截图也显示 103 万金币和 1-5 挑战入口。
-- 声音配置扫描已补齐常用音效，已验证的 APK 中包含 `res/music/20001.wav` 与 `res/music/20019.wav`。
+最近一次完整断网实测为 [Actions #89](https://github.com/chenmoulaile/apk/actions/runs/45378091812)。它的 APK 编译、重打包和签名步骤全部成功；最终端到端测试因为测试脚本在关卡 3 刚开始时就冷重启，未等关卡 4 完成，故整次工作流结论是 **FAIL**，不能把它当作通过验收的版本。
+
+尽管如此，#89 的日志确实记录了以下真实行为：
+
+- 关闭 Wi-Fi 和移动数据后，APK 使用本地 `file:///android_asset/game/index.html` 启动。
+- 离线账号登录、进入主城、角色移动成功。
+- 精灵升级请求成功，精灵属性由生命 13000、攻击 2200、防御 1200 提升至生命 14300、攻击 2420、防御 1320。
+- 打开精灵仓库、关卡挑战、编队和战斗界面成功。
+- 第 2、3 关的本地 PvE 战斗模拟、结算奖励和关卡推进均在日志中出现。
+- `atlas/combat/ani1.atlas` 的 8 帧战斗动画资源成功注册。
+- 强制结束进程并在断网状态重新启动后，存档恢复了 1,039,500 金币、第 3 关、升级后的精灵和道具数据。
+- 日志中没有发现阻止主线流程的 JavaScript 异常或关键战斗资源加载失败。
+
+#90 针对 #89 的测试时长问题，增加了第 2 至第 4 关逐关推进断言和进度截图；同时增加敌方编队完整性校验，避免敌方资源缺失时被错误判定为胜利。**这些最新改动仍以 #90 的实际运行结果为准。**
 
 ## 当前实现边界
 
-当前 PvE 战斗响应由离线补丁本地构造，自动返回胜利并驱动原版结算 UI；它还不是原服务端战斗 AI/回合协议的完整重实现。排行榜、真实在线玩家、支付、广告和外部分享不连接服务器；排行榜展示的模拟玩家会明确标识为模拟数据。
+- 本地登录、网络请求桩、本地玩家存档和部分基础 UI 行为由离线补丁提供。
+- 当前 PvE 由本地确定性模拟器生成回合步骤；敌方物种和等级取自已恢复的游戏配置，但战斗伤害/技能处理是简化模型，并非原服务端战斗逻辑的完整复刻。
+- 目前只覆盖已实测的主城移动、精灵基础成长/仓库交互和主线 PvE 路径。其他养成、装备、道具使用、活动、副本、任务等模块仍需逐项实现和测试。
+- 在线玩家、排行榜、聊天、支付、广告、外部分享和联网服务不提供真实在线功能；场景中的训练对手是明确标记的本地模拟数据。
+- 当前测试构建使用自动生成的本地签名，与原版签名不同；覆盖安装前需卸载原版。未通过最新断网验收的 APK 不应作为稳定版本分发。
 
-稳定 APK 中仍有一项非致命视觉问题：战斗辅助特效 `combat/ani1` 的部分帧会出现 Laya `lost skin` 提示，不影响胜利结算或存档。当前 `main` 分支的后续提交 `c11f19a` 正在尝试修复这组动画帧的初始化顺序，尚未通过新一轮模拟器验证。少量启动阶段的 QuickSDK 原生回调竞态仍会打印一次 `CallbackFromAndroid` ReferenceError，但不会阻止离线主流程。
+## 最新构建与下载
 
-## 最新已验证 APK
+请以 [Actions #90](https://github.com/chenmoulaile/apk/actions/runs/45380567773) 的结论和 Artifacts 为准。只有当工作流显示成功且日志中出现 `OFFLINE_SCENE_TEST=PASS` 时，才应把该工件视为通过当前主线离线验收的 APK。
 
-- GitHub Actions run：[45329870950](https://github.com/chenmoulaile/apk/actions/runs/45329870950)。
-- Artifact：`offline-apk-test-67`。
-- APK：`dist/super-spirit-ball-offline.apk`，约 120 MiB。
-- SHA-256：`f3686b0aacef098f745322db97533a0e51db9c51ba9525aac87ae205d25e9490`。
-- H5 资源快照：[recovered-h5-client-26](https://github.com/chenmoulaile/apk/actions/runs/45329870899)。
-
-请从对应 Actions run 的 Artifacts 下载 APK。APK 使用 Actions 生成的本地测试签名；它与原版签名不同，覆盖安装前需要先卸载原版。
+较早的历史构建不代表当前 `main` 分支的代码与验证状态。
 
 ## 目录
 
-- `work/`：分析记录、协议说明、资源扫描和补丁工具。
-- `dist/`：最终 APK 的输出目录（构建产物保存在 Actions Artifacts）。
-- `.github/workflows/offline-build.yml`：重建 APK、断网安装、主线战斗与冷重启存档验收。
-- `work/tools/test_offline_apk.sh`：主城移动、主线挑战、战斗、奖励及冷重启验收脚本。
+- `work/analysis/`：APK 架构、资源依赖和静态分析结论。
+- `work/analysis/game-protocol.md`：从原始客户端代码确认的 HTTP、WebSocket 和 Protobuf 契约。
+- `work/protocol/`：协议摘录和配置格式记录。
+- `work/recovered/`：H5 客户端资源快照脚本及清单；大体积资源通过 Actions Artifacts 保存。
+- `work/tools/patch_offline_h5.py`：离线登录、网络桩、存档和 PvE 模拟补丁。
+- `work/tools/patch_android.py`：Android APK/WebView 离线入口改造。
+- `work/tools/test_offline_apk.sh`：断网启动、移动、精灵成长、主线 PvE、奖励和冷重启存档测试。
+- `.github/workflows/offline-build.yml`：自动恢复 H5 资源、重打包签名 APK，并运行 Android 模拟器断网验收。
 
 ## 本地校验
 
-下载 Actions Artifact 后，可用以下命令校验 APK 完整性：
+下载 Actions Artifact 后，可校验 APK 完整性：
 
 ```bash
 sha256sum super-spirit-ball-offline.apk
