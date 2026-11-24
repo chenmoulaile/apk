@@ -305,6 +305,11 @@ def main() -> int:
                 manifest["combat_animation_asset_candidates"] = len(combat_animation_refs)
 
                 # Main PvE panels build item and point-icon URLs from ids.
+                pet_by_id_for_items = {
+                    int(row.get("id", 0)): row
+                    for row in parsed.get("cdc_pet_conf", [])
+                    if isinstance(row, dict) and str(row.get("id", "")).isdigit()
+                }
                 point_item_ids = {3, 4, 56, 59}
                 main_scene_item_refs: set[str] = set()
                 for stage in parsed.get("cdc_new_scene_grade_conf", []):
@@ -330,7 +335,7 @@ def main() -> int:
                             if 1000350 <= item_id <= 1000385:
                                 main_scene_item_refs.add("res/items/1/1000350.png")
                             elif item_id // 1000000 == 5:
-                                pet = pet_by_id.get(item_id % 100000)
+                                pet = pet_by_id_for_items.get(item_id % 100000)
                                 if pet and pet.get("spiritIcon"):
                                     queue.add("res/icons/" + str(pet["spiritIcon"]))
                             else:
