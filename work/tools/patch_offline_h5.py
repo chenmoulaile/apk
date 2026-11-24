@@ -117,10 +117,11 @@ HOOK = r"""
     x.name=p&&p.name||cfg&&cfg.name||"天空领主";x.exp=Number(p&&p.exp)||0;
     if(cfg){
       if(!Number(x.hp))x.hp=long(Number(cfg.hp)||0);
-      if(!Number(x.attack))x.attack=long(Number(cfg.basicAttack)||0);
-      if(!Number(x.defense))x.defense=long(Number(cfg.basicDefense)||0);
-      if(!Number(x.starLevel))x.starLevel=Number(cfg.starLevel)||1;
+      if(!Number(x.attack))x.attack=long(Number(cfg.attack)||0);
+      if(!Number(x.defense))x.defense=long(Number(cfg.defense)||0);
+      if(!Number(x.starLevel))x.starLevel=Number(cfg.quality)||Number(cfg.starLevel)||1;
     }
+    log("local pet seed attrs",id,String(x.attack),String(x.defense),String(x.hp));
     return x;
   }
   function normalizePetPack(u){
