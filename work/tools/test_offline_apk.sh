@@ -34,14 +34,14 @@ timeout 10s adb shell input tap 160 1623 > tmp/offline-test/pet-levelup-tap.txt 
 sleep 6
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-screen.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-screen.png tmp/offline-test/offline-pet-levelup-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 858 1278 > tmp/offline-test/pet-growup-tap.txt 2>&1
+timeout 10s adb shell input tap 640 1335 > tmp/offline-test/pet-growup-tap.txt 2>&1
 sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-after.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-after.png tmp/offline-test/offline-pet-levelup-after.png > /dev/null 2>&1
 # Close the strengthen overlay and open the storage replacement picker.
-timeout 10s adb shell input tap 985 55 > tmp/offline-test/pet-strengthen-close.txt 2>&1
+timeout 10s adb shell input tap 880 150 > tmp/offline-test/pet-strengthen-close.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 975 375 > tmp/offline-test/pet-replace-tap.txt 2>&1
+timeout 10s adb shell input tap 840 350 > tmp/offline-test/pet-replace-tap.txt 2>&1
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
 timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
