@@ -116,6 +116,27 @@ timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
 timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
+# Return to the main UI and verify that battle rewards appear in the bag.
+adb shell input keyevent 4 > tmp/offline-test/task-panel-close.txt 2>&1
+sleep 5
+timeout 10s adb shell input tap 690 1835 > tmp/offline-test/bag-tab-tap.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-bag-screen.png
+timeout 30s adb pull /sdcard/offline-bag-screen.png tmp/offline-test/offline-bag-screen.png > /dev/null 2>&1
+# Use the game's real one-key-wear button on the Spirit page.
+timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
+sleep 6
+timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
+timeout 30s adb pull /sdcard/offline-equipped-screen.png tmp/offline-test/offline-equipped-screen.png > /dev/null 2>&1
+# Open the first worn slot to exercise the equipment-detail query.
+timeout 10s adb shell input tap 120 1130 > tmp/offline-test/equipment-detail-open.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
+timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
+adb shell input keyevent 4 > tmp/offline-test/equipment-detail-close.txt 2>&1
+sleep 5
 # Preserve first-session evidence, then cold-restart while networking remains disabled.
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/first-run-logcat.txt
 adb shell am force-stop com.ruirui.cjjlq
@@ -159,6 +180,12 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local task box claimed daily 1 liveness 20" tmp/offline-test/logcat.txt \
   && grep -q "local task claimed weekly 3 liveness 10" tmp/offline-test/logcat.txt \
   && grep -q "local main task claimed 1 next 2" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment item reward 4000002 1 position 2" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment item reward 4000003 1 position 3" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment item reward 4000004 1 position 4" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment worn query 1 3" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored equipment 3 3" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
@@ -214,7 +241,10 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-task-daily-claimed.png \
   && test -s tmp/offline-test/offline-task-weekly.png \
   && test -s tmp/offline-test/offline-task-main.png \
-  && test -s tmp/offline-test/offline-task-main-claimed.png; then
+  && test -s tmp/offline-test/offline-task-main-claimed.png \
+  && test -s tmp/offline-test/offline-bag-screen.png \
+  && test -s tmp/offline-test/offline-equipped-screen.png \
+  && test -s tmp/offline-test/offline-equipment-detail-screen.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
