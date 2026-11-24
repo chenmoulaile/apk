@@ -30,18 +30,18 @@ sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-pet-main-screen.png
 timeout 30s adb pull /sdcard/offline-pet-main-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
 # Open Level Up, request one real config-priced growth step, then capture the result.
-timeout 10s adb shell input tap 160 1395 > tmp/offline-test/pet-levelup-tap.txt 2>&1
+timeout 10s adb shell input tap 160 1623 > tmp/offline-test/pet-levelup-tap.txt 2>&1
 sleep 6
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-screen.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-screen.png tmp/offline-test/offline-pet-levelup-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 707 1428 > tmp/offline-test/pet-growup-tap.txt 2>&1
+timeout 10s adb shell input tap 858 1278 > tmp/offline-test/pet-growup-tap.txt 2>&1
 sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-after.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-after.png tmp/offline-test/offline-pet-levelup-after.png > /dev/null 2>&1
 # Close the strengthen overlay and open the storage replacement picker.
 timeout 10s adb shell input tap 985 55 > tmp/offline-test/pet-strengthen-close.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 840 350 > tmp/offline-test/pet-replace-tap.txt 2>&1
+timeout 10s adb shell input tap 975 375 > tmp/offline-test/pet-replace-tap.txt 2>&1
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-pet-replace-screen.png
 timeout 30s adb pull /sdcard/offline-pet-replace-screen.png tmp/offline-test/offline-pet-replace-screen.png > /dev/null 2>&1
@@ -119,6 +119,10 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored 2069500 4" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/NewBag.atlas" \
+  && ! grep -q "Failed to load: atlas/ZPower.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/upgradeLight.atlas" tmp/offline-test/logcat.txt \
+  && grep -q "local optional atlas group skipped ZPower" tmp/offline-test/logcat.txt \
+  && grep -q "local optional atlas group skipped upgradeLight" tmp/offline-test/logcat.txt \
   && ! grep -q "Uncaught (in promise) undefined" \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: role/1/" tmp/offline-test/logcat.txt \
