@@ -108,27 +108,124 @@ HOOK = r"""
     if(!u.extInfo.chaseBeastInfo)u.extInfo.chaseBeastInfo=new rp.ChaseBeastInfo();
     if(!u.extInfo.chaseBeastInfo.chaseBeastGuardInfo)u.extInfo.chaseBeastInfo.chaseBeastGuardInfo={};
   }
-  function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
+  function petFrom(p){
+    var x=new rp.PetEntry();
+    try{if(p)for(var key in p)if(Object.prototype.hasOwnProperty.call(p,key))x[key]=p[key];}catch(_){}
+    var id=Number(p&&p.id)||3101,cfg=null;
+    try{cfg=GC.G().spiritConfig.getDes(id);}catch(_){}
+    x.id=id;x.level=Math.max(1,Number(p&&p.level)||1);x.genId=Number(p&&p.genId)||100001;
+    x.name=p&&p.name||cfg&&cfg.name||"天空领主";x.exp=Number(p&&p.exp)||0;
+    if(cfg){
+      if(!Number(x.hp))x.hp=long(Number(cfg.hp)||0);
+      if(!Number(x.attack))x.attack=long(Number(cfg.basicAttack)||0);
+      if(!Number(x.defense))x.defense=long(Number(cfg.basicDefense)||0);
+      if(!Number(x.starLevel))x.starLevel=Number(cfg.starLevel)||1;
+    }
+    return x;
+  }
   function normalizePetPack(u){
     if(!u.petPackInfo)u.petPackInfo=new rp.PetPackInfo();
     var packs=u.petPackInfo.packArray;
     if(!Array.isArray(packs))packs=[];
     var first=packs[0]&&packs[0].pet;
     if(!first||!first.id)first=petFrom(null);
-    for(var i=0;i<6;i++){
+    // Six formations, six positions per formation. Preserve every decoded slot.
+    for(var i=0;i<36;i++){
       var node=packs[i];
-      if(!node){node=new rp.PackNode();node.index=i;node.state=0;node.equip=[];}
+      if(!node){node=new rp.PackNode();node.state=0;node.equip=[];node.combatPos=0;}
       if(!node.equip)node.equip=[];
+      node.index=i+1;
+      if(node.pet&&node.pet.id)node.state=1;
+      else{node.state=0;node.combatPos=0;}
       if(i===0&&(!node.pet||!node.pet.id)){node.pet=first;node.state=1;node.combatPos=1;}
       packs[i]=node;
     }
-    packs.length=6;
+    packs.length=36;
     u.petPackInfo.packArray=packs;
     if(!u.petStorageInfo)u.petStorageInfo=new rp.PetStorageInfo();
     if(!Array.isArray(u.petStorageInfo.petArray))u.petStorageInfo.petArray=[];
     if(!u.petStorageInfo.petArray.some(function(x){return x&&x.genId===first.genId;}))u.petStorageInfo.petArray.push(first);
     if(!u.petStorageInfo.sidGenerator)u.petStorageInfo.sidGenerator=100002;
     return packs;
+  }
+  function offlinePackSlot(index){
+    var n=Number(index);
+    if(!isFinite(n)||Math.floor(n)!==n)return -1;
+    return n>0?n-1:n;
+  }
+  function offlineClientPet(p,inPack){
+    var c=new rp.ClientPetEntry();
+    var fields=["id","name","level","catchTime","isNew","oldHp","oldDefense","oldAttack","genId","exp","insight","evalve","shadowPet",
+      "assitAttack","assitDefense","assitHp","washHp","washAttack","washDefense","washLevel","washStates","washNewHp","washNewAttack","washNewDefense",
+      "washStoneCountLow","washStoneCountHigh","awakeTimes","fosterAttrIdNum","fosterAttrMap","isskinon","isBreakLimit","attack","defense","hp","starLevel","crystalLevel","fightScore","zPower"];
+    fields.forEach(function(k){if(p&&p[k]!=null)c[k]=p[k];});
+    c.__isInPack=inPack?1:0;
+    return c;
+  }
+  function makeOfflinePetStorageRsp(r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;normalizePetPack(u);
+    var storage=u.petStorageInfo,pack=u.petPackInfo,seen={},petArray=[];
+    (storage.petArray||[]).forEach(function(p){
+      if(!p||!p.genId||seen[p.genId])return;
+      seen[p.genId]=true;
+      var equipped=pack.packArray.some(function(n){return n&&n.pet&&n.pet.genId===p.genId;});
+      petArray.push(offlineClientPet(p,equipped));
+    });
+    pack.packArray.forEach(function(n){
+      var p=n&&n.pet;
+      if(!p||!p.genId||seen[p.genId])return;
+      seen[p.genId]=true;petArray.push(offlineClientPet(p,true));
+    });
+    var clientStorage=new rp.ClientPetStorageInfo();
+    clientStorage.sidGenerator=storage.sidGenerator||100002;clientStorage.petArray=petArray;
+    r.ret=0;r.storageInfo=storage;r.packInfo=pack;r.unlockLevel=r.unlockLevel||[];
+    r.maxStoragePstCount=100;r.clientStorageInfo=clientStorage;
+    log("local pet storage loaded",petArray.length,pack.packArray.length);
+    return r;
+  }
+  function makeOfflinePackMutation(req,kind,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;var packs=normalizePetPack(u),a,b;
+    if(kind==="formationChange"){
+      a=offlinePackSlot(req&&req.index);b=Number(req&&req.pos);
+      if(a<0||a>=36||b<1||b>6||!packs[a]||!packs[a].pet){r.ret=1;return r;}
+      var row=Math.floor(a/6)*6;
+      for(var i=row;i<row+6;i++)if(i!==a&&packs[i]&&Number(packs[i].combatPos)===b)packs[i].combatPos=0;
+      packs[a].combatPos=b;
+    }else if(kind==="packSwap"){
+      a=offlinePackSlot(req&&req.petIndex1);b=offlinePackSlot(req&&req.petIndex2);
+      if(a<0||a>=36||b<0||b>=36){r.ret=1;return r;}
+      var left=packs[a],right=packs[b];
+      ["state","pet","equip","combatPos","artifact","indexFateMap","pvePetId"].forEach(function(k){var v=left[k];left[k]=right[k];right[k]=v;});
+      left.index=a+1;right.index=b+1;
+    }else if(kind==="formationSwap"){
+      a=Number(req&&req.formationIndex1);b=Number(req&&req.formationIndex2);
+      if(a>5)a--;if(b>5)b--;
+      if(a<0||a>5||b<0||b>5){r.ret=1;return r;}
+      for(var j=0;j<6;j++){
+        var ia=a*6+j,ib=b*6+j,one=packs[ia],two=packs[ib];
+        ["state","pet","equip","combatPos","artifact","indexFateMap","pvePetId"].forEach(function(k){var v=one[k];one[k]=two[k];two[k]=v;});
+        one.index=ia+1;two.index=ib+1;
+      }
+    }else if(kind==="takePet"){
+      a=offlinePackSlot(req&&req.packIndex);
+      var petId=Number(req&&req.petId),pet=(u.petStorageInfo.petArray||[]).find(function(p){return p&&Number(p.genId)===petId;});
+      if(a<0||a>=36||!pet){r.ret=1;return r;}
+      packs[a].pet=petFrom(pet);packs[a].state=1;packs[a].combatPos=a%6+1;
+    }else if(kind==="cleanPet"){
+      a=offlinePackSlot(req&&req.index);
+      if(a<0||a>=36||!packs[a]||!packs[a].pet){r.ret=1;return r;}
+      packs[a].pet=null;packs[a].state=0;packs[a].combatPos=0;packs[a].equip=[];packs[a].artifact=null;
+    }
+    u.petPackInfo=new rp.PetPackInfo();u.petPackInfo.packArray=packs;
+    if(typeof DM!=="undefined"&&DM.G&&DM.G().setPetPackInfo)DM.G().setPetPackInfo(u.petPackInfo);
+    r.ret=0;if(r.packInfo!==undefined)r.packInfo=u.petPackInfo;
+    if(r.storageInfo!==undefined)r.storageInfo=u.petStorageInfo;
+    save();log("local pet pack mutation",kind,a,b,packs.length);
+    return r;
   }
   function offlineAction(type,params){
     var a=new rp.Action();a.type=type;a.params=params||[];return a;
@@ -324,6 +421,24 @@ HOOK = r"""
       else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
       else if(Resp===rp.NewSceneGradeFightRsp){
         r=makeOfflineSceneFight(req);
+      }
+      else if(Resp===rp.GetPetStorageRsp){
+        r=makeOfflinePetStorageRsp(r);
+      }
+      else if(Resp===rp.PetFormationChangeRsp){
+        r=makeOfflinePackMutation(req,"formationChange",r);
+      }
+      else if(Resp===rp.PetPackInfoSwapRsp){
+        r=makeOfflinePackMutation(req,"packSwap",r);r.packInfo=current&&current.petPackInfo;
+      }
+      else if(Resp===rp.PetFormationSwapRsp){
+        r=makeOfflinePackMutation(req,"formationSwap",r);r.packInfo=current&&current.petPackInfo;
+      }
+      else if(Resp===rp.TakePetFromStorageToPackRsp){
+        r=makeOfflinePackMutation(req,"takePet",r);r.packInfo=current&&current.petPackInfo;r.storageInfo=current&&current.petStorageInfo;
+      }
+      else if(Resp===rp.CleanOnePackNodeRsp){
+        r=makeOfflinePackMutation(req,"cleanPet",r);r.packInfo=current&&current.petPackInfo;r.storageInfo=current&&current.petStorageInfo;
       }
       else if(Resp===rp.QuickHangupOperateRsp){
         var usedBefore=quickCombatUsed,operate=Number(req&&req.operate||0);

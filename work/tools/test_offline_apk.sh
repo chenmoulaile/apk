@@ -24,6 +24,14 @@ timeout 10s adb shell input tap 650 790 > tmp/offline-test/map-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-move-screen.png
 timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-move-screen.png > /dev/null 2>&1
+# Open the Spirit tab and verify the offline pet-storage RPC returns all 36 pack slots.
+timeout 10s adb shell input tap 350 1630 > tmp/offline-test/pet-tab-tap.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-pet-storage-screen.png
+timeout 30s adb pull /sdcard/offline-pet-storage-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
+# Return to the main-city tab before continuing the main challenge scenario.
+timeout 10s adb shell input tap 65 1630 > tmp/offline-test/main-tab-return.txt 2>&1
+sleep 5
 # Main Challenge button center: logical (355,1078), scaled to 1080x1920.
 timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
 sleep 5
@@ -70,7 +78,9 @@ cat tmp/offline-test/SUMMARY.txt
 BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|\\[Offline\\] unhandledrejection (TypeError|ReferenceError|NotSupportedError)'
 # Fail on every uncaught JavaScript exception, including early native callback races.
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
-if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
+if grep -q "local pet storage loaded 1 36" tmp/offline-test/logcat.txt \
+  && test -s tmp/offline-test/offline-pet-storage-screen.png \
+  && grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
@@ -96,6 +106,7 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
   && test -s tmp/offline-test/offline-move-screen.png \
+  && test -s tmp/offline-test/offline-pet-storage-screen.png \
   && test -s tmp/offline-test/offline-main-challenge-panel.png \
   && test -s tmp/offline-test/offline-combat-formation-panel.png \
   && test -s tmp/offline-test/offline-battle-screen.png \
