@@ -2,8 +2,8 @@
 
 > 当前状态：**断网启动、主城移动、精灵升级、主线 PvE 第 2–4 关和冷启动存档均已有模拟器日志证明；精灵仓库弹窗正在补做 UI 交互验收。项目尚未达到完整游戏复原或正式发布标准。**
 >
-> 当前验证代码：`d66afe3`。最新离线构建 #95 正在运行：
-> [Build and test offline Android APK #95](https://github.com/chenmoulaile/apk/actions/runs/45394228257)。
+> 当前验证代码：`4ca793f`。最新离线构建 #96 正在运行：
+> [Build and test offline Android APK #96](https://github.com/chenmoulaile/apk/actions/runs/45394811036)。
 
 ## 已经由断网模拟器实测的能力
 
@@ -31,7 +31,7 @@
 
 ## 最新构建与下载
 
-请以 [Actions #95](https://github.com/chenmoulaile/apk/actions/runs/45394228257) 的结论和 Artifacts 为准。只有当工作流显示成功且日志中出现 `OFFLINE_SCENE_TEST=PASS` 时，才应把该工件视为通过当前主线离线验收的 APK。
+请以 [Actions #96](https://github.com/chenmoulaile/apk/actions/runs/45394811036) 的结论和 Artifacts 为准。只有当工作流显示成功且日志中出现 `OFFLINE_SCENE_TEST=PASS` 时，才应把该工件视为通过当前主线离线验收的 APK。
 
 较早的历史构建不代表当前 `main` 分支的代码与验证状态。
 
