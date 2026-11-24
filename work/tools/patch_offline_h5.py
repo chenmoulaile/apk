@@ -39,6 +39,9 @@ HOOK = r"""
       if(!current.extInfo)current.extInfo=new rp.UserExtInfo();
       if(!current.extInfo.newGuildInfo)current.extInfo.newGuildInfo=new rp.NewGuildInfo();
       current.extInfo.newGuildInfo.version=0;current.extInfo.newGuildInfo.steps=current.extInfo.newGuildInfo.steps||{};
+      if(!current.guideScheduleInfo)current.guideScheduleInfo=new rp.GuideActiveSchedule();
+      if(!current.guideScheduleInfo.riseStepByStep)current.guideScheduleInfo.riseStepByStep=new rp.GuideActive();
+      current.guideScheduleInfo.riseStepByStep.isFinish=1;
       if(!current.collectCardInfo)current.collectCardInfo=new rp.CardCollectInfo();
       if(!current.collectCardInfo.nowSeason||!GC.G().CARD_COLLECT_SEASON_CONF.getDes(current.collectCardInfo.nowSeason))current.collectCardInfo.nowSeason=currentCardSeason();
       if(!current.petRoomInfo)current.petRoomInfo=new rp.PetRoomInfo();
@@ -90,6 +93,9 @@ HOOK = r"""
     Object.keys(typed).forEach(function(k){try{u[k]=new rp[typed[k]]();}catch(e){log("proto field init",k,e);}});
     u.petCrystalInfo.crystalLevel=1;
     u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
+    if(!u.guideScheduleInfo)u.guideScheduleInfo=new rp.GuideActiveSchedule();
+    if(!u.guideScheduleInfo.riseStepByStep)u.guideScheduleInfo.riseStepByStep=new rp.GuideActive();
+    u.guideScheduleInfo.riseStepByStep.isFinish=1;
     return u;
   }
   function save(){
