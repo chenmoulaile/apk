@@ -121,7 +121,11 @@ HOOK = r"""
       if(!Number(x.defense))x.defense=long(Number(cfg.defense)||0);
       if(!Number(x.starLevel))x.starLevel=Number(cfg.quality)||Number(cfg.starLevel)||1;
     }
+    if(!Number(x.fightScore)){
+      x.fightScore=long(Math.floor(1.1*Number(x.hp||0)+10*Number(x.attack||0)+10*Number(x.defense||0)));
+    }
     log("local pet seed attrs",id,String(x.attack),String(x.defense),String(x.hp));
+    log("local pet seed score",id,String(x.fightScore));
     return x;
   }
   function normalizePetPack(u){
@@ -215,6 +219,8 @@ HOOK = r"""
       a=offlinePackSlot(req&&req.packIndex);
       var petId=Number(req&&req.petId),pet=(u.petStorageInfo.petArray||[]).find(function(p){return p&&Number(p.genId)===petId;});
       if(a<0||a>=18||!pet){r.ret=1;return r;}
+      var alreadyPacked=packs.some(function(n,i){return i!==a&&n&&n.pet&&Number(n.pet.genId)===petId;});
+      if(alreadyPacked){r.ret=1;log("local pet already in pack",petId);return r;}
       packs[a].pet=petFrom(pet);packs[a].state=1;packs[a].combatPos=a%6+1;
     }else if(kind==="cleanPet"){
       a=offlinePackSlot(req&&req.index);
@@ -280,10 +286,22 @@ HOOK = r"""
     if(type===Number(rp.Action.ActionTye.ADD_EXP)){
       u.baseInfo.totalExp=long(Number(u.baseInfo.totalExp||0)+amount);
       u.baseInfo.oldTotalExp=long(Number(u.baseInfo.oldTotalExp||0)+amount);
+      addLocalPointItem(4,amount);
       log("local trainer exp reward",amount,String(u.baseInfo.totalExp));
+    }else if(type===Number(rp.Action.ActionTye.ADD_PET_EXP)){
+      addLocalPointItem(5,amount);
+      log("local pet exp reward",amount,Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0));
+    }else if(type===Number(rp.Action.ActionTye.ADD_DIAMOND)){
+      var money=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo());
+      money.diamond=Number(money.diamond||0)+amount;
+      log("local diamond reward",amount,money.diamond);
+    }else if(type===Number(rp.Action.ActionTye.ADD_CASH)){
+      var cash=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo());
+      cash.cash=Number(cash.cash||0)+amount;
+      log("local cash reward",amount,cash.cash);
     }else if(type===Number(rp.Action.ActionTye.ADD_ITEM)){
       addLocalItem(p[0],p[1]);
-    }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)){
+    }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)||type===Number(rp.Action.ActionTye.ADD_LEVEL_EXP)){
       addLocalPointItem(p[0],p[1]);
     }
   }
@@ -378,7 +396,7 @@ HOOK = r"""
       for(var j=0;j<u.petStorageInfo.petArray.length;j++)if(u.petStorageInfo.petArray[j]&&u.petStorageInfo.petArray[j].genId===pet.genId)u.petStorageInfo.petArray[j]=pet;
     }
     log("local pet growup",index,oldLevel+"->"+pet.level,"hp",String(pet.hp),"attack",String(pet.attack),"defense",String(pet.defense),
-      "gold",String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),"point56",Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[56]||0));
+      "score",String(pet.fightScore),"gold",String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),"point56",Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[56]||0));
     save();return r;
   }
   function combatSpirit(id,level,hp){
@@ -427,6 +445,7 @@ HOOK = r"""
       return offlineAction(a.type,params);
     });
     if(!rsp.actionArr.length)rsp.actionArr=[offlineAction(rp.Action.ActionTye.ADD_GOLD,[10000])];
+    if(result.fightData[0])result.fightData[0].rewards=rsp.actionArr;
     var gold=0;
     rsp.actionArr.forEach(function(a){
       var type=Number(a.type);

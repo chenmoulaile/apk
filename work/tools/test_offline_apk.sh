@@ -30,16 +30,16 @@ sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-pet-main-screen.png
 timeout 30s adb pull /sdcard/offline-pet-main-screen.png tmp/offline-test/offline-pet-storage-screen.png > /dev/null 2>&1
 # Open Level Up, request one real config-priced growth step, then capture the result.
-timeout 10s adb shell input tap 160 1560 > tmp/offline-test/pet-levelup-tap.txt 2>&1
+timeout 10s adb shell input tap 130 1605 > tmp/offline-test/pet-levelup-tap.txt 2>&1
 sleep 6
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-screen.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-screen.png tmp/offline-test/offline-pet-levelup-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 985 1405 > tmp/offline-test/pet-growup-tap.txt 2>&1
+timeout 10s adb shell input tap 545 1428 > tmp/offline-test/pet-growup-tap.txt 2>&1
 sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-pet-levelup-after.png
 timeout 30s adb pull /sdcard/offline-pet-levelup-after.png tmp/offline-test/offline-pet-levelup-after.png > /dev/null 2>&1
 # Close the strengthen overlay and open the storage replacement picker.
-timeout 10s adb shell input tap 1020 180 > tmp/offline-test/pet-strengthen-close.txt 2>&1
+timeout 10s adb shell input tap 985 55 > tmp/offline-test/pet-strengthen-close.txt 2>&1
 sleep 5
 timeout 10s adb shell input tap 975 375 > tmp/offline-test/pet-replace-tap.txt 2>&1
 sleep 10
@@ -99,8 +99,8 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 # Fail on every uncaught JavaScript exception, including early native callback races.
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt || true)
 if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.txt \
-  && grep -q "local pet attributes calculated 1" tmp/offline-test/logcat.txt \
-  && grep -q "local pet growup 0 1->2 hp 14300 attack 2420 defense 1320" tmp/offline-test/logcat.txt \
+  && grep -q "local pet seed score 3101 48300" tmp/offline-test/logcat.txt \
+  && grep -q "local pet growup 0 1->2 hp 14300 attack 2420 defense 1320 score 53130" tmp/offline-test/logcat.txt \
   && grep -q "local scene reward actions 103:4000002,1|103:1001019,10|100:200|101:20000" tmp/offline-test/logcat.txt \
   && grep -q "local point item reward 59 1000 1000" tmp/offline-test/logcat.txt \
   && grep -q "local save restored 1069500 4" tmp/offline-test/logcat.txt \
