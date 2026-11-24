@@ -337,6 +337,23 @@ def main() -> int:
                 manifest["ui_skin_asset_candidates"] = len(ui_skin_refs)
                 manifest["combat_animation_asset_candidates"] = len(combat_animation_refs)
 
+                # Sound files are keyed by IDs in cdc_sound_conf, not always
+                # referenced literally in code.js (e.g. 20019.wav).
+                music_refs: set[str] = set()
+                for sound in parsed.get("cdc_sound_conf", []):
+                    if not isinstance(sound, dict):
+                        continue
+                    filename = sound.get("file")
+                    if (
+                        isinstance(filename, str)
+                        and filename
+                        and PurePosixPath(filename).name == filename
+                        and PurePosixPath(filename).suffix.lower() in {".wav", ".mp3"}
+                    ):
+                        music_refs.add("res/music/" + filename)
+                queue.update(music_refs)
+                manifest["music_asset_candidates"] = len(music_refs)
+
                 # Main PvE panels build item and point-icon URLs from ids.
                 pet_by_id_for_items = {
                     int(row.get("id", 0)): row
