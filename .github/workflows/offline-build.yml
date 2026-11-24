@@ -104,6 +104,7 @@ jobs:
           required_runtime_assets = [
               "atlas/combat/animation0.atlas",
               "atlas/combat/frmBattle.atlas",
+              "atlas/combat/ani1.atlas",
               "atlas/mainUI/laba02_bg.png",
               "atlas/Checkpoint/MainChallenge.atlas",
               "atlas/Checkpoint/offLineGiftPanel.atlas",
@@ -133,6 +134,8 @@ jobs:
               "res/items/1/1000019.png",
               "res/items/1/1001019.png",
               "res/combat/spirits/mon124.png",
+              "res/music/20001.wav",
+              "res/music/20019.wav",
           ]
           missing_runtime = [name for name in required_runtime_assets if not (assets / name).is_file()]
           for atlas_name in [name for name in required_runtime_assets if name.endswith(".atlas")]:

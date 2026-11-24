@@ -44,14 +44,23 @@ timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 
 timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
 timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
 timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
-timeout 30s adb logcat -d -v threadtime > tmp/offline-test/logcat.txt
+# Preserve first-session evidence, then cold-restart while networking remains disabled.
+timeout 30s adb logcat -d -v threadtime > tmp/offline-test/first-run-logcat.txt
+adb shell am force-stop com.ruirui.cjjlq
+sleep 3
+adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/reload-launch.txt 2>&1
+sleep 35
+timeout 20s adb shell screencap -p /sdcard/offline-reload-screen.png
+timeout 30s adb pull /sdcard/offline-reload-screen.png tmp/offline-test/offline-reload-screen.png > /dev/null 2>&1
+timeout 30s adb logcat -d -v threadtime > tmp/offline-test/reload-logcat.txt
+cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt > tmp/offline-test/logcat.txt
 {
   echo "=== install ==="
   cat tmp/offline-test/install.txt
   echo "=== app pid ==="
   cat tmp/offline-test/app-pid.txt
   echo "=== Offline H5 log lines ==="
-  grep -iE "\\[Offline\\]|offline patch|local LoginRsp|EnterSceneRsp|file:///android_asset/game|ERR_FILE_NOT_FOUND|FATAL EXCEPTION|Uncaught" tmp/offline-test/logcat.txt | tail -n 800 || true
+  grep -iE "\\[Offline\\]|offline patch|local LoginRsp|EnterSceneRsp|local save restored|file:///android_asset/game|ERR_FILE_NOT_FOUND|FATAL EXCEPTION|Uncaught" tmp/offline-test/logcat.txt | tail -n 800 || true
   echo "=== dynamic battle resource errors ==="
   grep -iE "Failed to load: res/combat|Unable to open asset URL: file:///android_asset/game/res/combat" tmp/offline-test/logcat.txt | tail -n 250 || true
   echo "=== network errors ==="
@@ -65,6 +74,7 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored 1030000 4" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: role/1/" tmp/offline-test/logcat.txt \
@@ -85,9 +95,10 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && test -s tmp/offline-test/offline-move-screen.png \
   && test -s tmp/offline-test/offline-main-challenge-panel.png \
   && test -s tmp/offline-test/offline-combat-formation-panel.png \
-  && test -s tmp/offline-test/offline-battle-screen.png; then
+  && test -s tmp/offline-test/offline-battle-screen.png \
+  && test -s tmp/offline-test/offline-reload-screen.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
-echo "OFFLINE_SCENE_TEST=FAIL (scene/login/main PvE challenge response missing, fatal JS rejection, missing role/combat assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
+echo "OFFLINE_SCENE_TEST=FAIL (scene/login/main PvE response, rewards, save restore, fatal JS rejection, missing assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
 exit 1

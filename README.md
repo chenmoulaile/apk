@@ -1,45 +1,39 @@
 # 超级精灵球离线化研究
 
-> 状态：静态分析已完成第一轮，云端动态探测正在执行；尚未形成可玩的离线 APK。原始 APK 已由用户上传到仓库根目录。
+> 当前状态：**核心离线主线 PvE 已通过 Android 30 断网模拟器自动验收**。最新已验证 APK 对应 GitHub Actions run [45327605989](https://github.com/chenmoulaile/apk/actions/runs/45327605989)，结果为 `OFFLINE_SCENE_TEST=PASS`。
 
-## 目录约定
+## 已验证能力
 
-- `work/`：分析记录、协议说明、工具脚本和后续源码修改。
-- `dist/`：最终重打包 APK 的输出目录。
-- `tmp/`：解包、反编译、抓包等临时文件，不提交临时内容。
+- APK 将原远程 H5 入口改为 `file:///android_asset/game/index.html`，核心游戏资源随 APK 本地加载。
+- 在关闭 Wi-Fi 和移动数据后，能够初始化本地账号、进入主城并移动角色。
+- 能打开主线挑战、阵容和战斗结算界面。
+- 本地 PvE 响应能返回胜利、发放金币并推进关卡；最近一次测试从关卡 1 连续推进到关卡 4，金币增加到 1,030,000。
+- 本地账号数据使用 localStorage/protobuf 保存。后续构建会增加强制结束进程后的冷启动恢复验收。
 
-## 当前结论
+## 当前实现边界
 
-上传的 `com.ruirui.cjjlq.apk`（现已提交在仓库根目录） 是 QuickGame JS 壳，不是包含完整游戏客户端资源的独立 APK。启动入口指向远程 H5 页面：
+当前 PvE 战斗响应由离线补丁本地构造，自动返回胜利并驱动原版结算 UI；它还不是原服务端战斗 AI/回合协议的完整重实现。排行榜、真实在线玩家、支付、广告和外部分享不连接服务器；排行榜展示的模拟玩家会明确标识为模拟数据。
 
-`https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/index.html`
+目前仍有少量非核心资源待完善：战斗辅助特效的部分皮肤帧曾出现 Laya `lost skin` 提示，部分音乐资源此前缺失。资源扫描器现已增加音乐文件自动发现，并把常用音效和战斗 `ani1` 图集加入构建门槛。少量启动阶段的 QuickSDK 原生回调竞态仍会打印一次 ReferenceError，但不会阻止离线主流程；验收脚本只忽略这一条已知启动日志。
 
-APK 本身未包含 HTML 页面或游戏 JS bundle。APK 内的 `assets/libQuickSDKH5_To_Client.js` 只暴露 QuickSDK 桥接契约。首轮确认的登录通知字段为 `status`、`uid`、`username`、`token`、`oaid`；这不是游戏网关的完整登录响应。
+## 最新构建产物
 
-因此，只有这份 APK 还不足以构造能运行原游戏的离线版本。还需要原 H5 资源/本地缓存，或游戏运行时的请求与响应记录。协议说明见 [work/analysis/static-analysis.md](work/analysis/static-analysis.md)，桥接字段见 [work/protocol/quicksdk-bridge.json](work/protocol/quicksdk-bridge.json)。
+- 已验证 APK：GitHub Actions [offline-apk-test-65](https://github.com/chenmoulaile/apk/actions/runs/45327605989) 的 Artifacts。
+- APK 文件：`dist/super-spirit-ball-offline.apk`。
+- SHA-256：`1633987a65902b07fc3b107150ac0f0ce1b24cd822cef21bd0e3bf0066808cb6`。
+- H5 资源快照：GitHub Actions [recovered-h5-client-24](https://github.com/chenmoulaile/apk/actions/runs/45327606038) 的 Artifacts。
 
-## 约定
+## 目录
 
-本项目的模拟玩家只用于离线本地的 AI/影子数据展示，并明确标注为模拟数据；不会伪装真实在线用户，也不会向外部排行榜注入虚假记录。离线付费能力应通过本地解锁/开发菜单实现，不连接真实支付渠道。
+- `work/`：分析记录、协议说明、资源扫描和补丁工具。
+- `dist/`：签名后的离线 APK 与校验和。
+- `.github/workflows/offline-build.yml`：重建 APK、关闭网络、执行自动化主线验收。
+- `work/tools/test_offline_apk.sh`：主城移动、主线挑战、战斗、奖励及冷重启验收脚本。
 
-## 可重复分析工具
+## 本地校验
 
 ```bash
-python3 work/tools/inspect_apk.py /path/to/com.ruirui.cjjlq.apk
-python3 work/tools/dex_xref.py /path/to/com.ruirui.cjjlq.apk
-python3 work/tools/make_login_notify.py --uid offline-local-001 --username "离线玩家"
+sha256sum -c dist/SHA256SUMS.txt
 ```
 
-第三个工具只生成已确认的 QuickSDK `loginNotify` 桥接输入（JSON 与 Base64），便于离线桥接测试；它不等于游戏网关登录响应，也没有被注入原 APK。
-
-更完整的接口归属和交叉引用见 [work/analysis/sdk-endpoints.md](work/analysis/sdk-endpoints.md)。当前本地工作环境没有 APK 反编译/打包工具链；云端 Actions 已配置 Android SDK/模拟器探测流程。H5 资源是否能从旧入口恢复，须以动态探测产物为准，因此 `dist/` 暂无可验证的离线 APK。
-
-
-## 云端动态探测
-
-已增加 [Android emulator probe workflow](.github/workflows/android-probe.yml)。它会在 GitHub Actions Linux Runner 中创建 Android 30 x86_64 模拟器，尝试安装并启动仓库根目录的原始 APK，探测远程 H5 入口，并归档 Logcat、设备状态、可访问的应用数据和下载到的 H5 资源。
-
-运行记录：
-https://github.com/chenmoulaile/apk/actions/workflows/android-probe.yml
-
-云端探测产物会在对应 workflow run 的 Artifacts 中保留 30 天。首次动态测试尚在执行，结果确认前不会宣称 APK 已能离线运行。
+APK 使用 Actions 生成的本地测试签名。它是独立安装包；若设备已有同包名但不同签名的原版安装，需要先卸载原版再安装此 APK。

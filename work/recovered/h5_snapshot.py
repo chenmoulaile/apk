@@ -54,6 +54,7 @@ CORE_FILES = [
     # Runtime-loaded resources can be absent from literal JS path scans.
     "atlas/combat/animation0.atlas",
     "atlas/combat/frmBattle.atlas",
+    "atlas/combat/ani1.atlas",
     "atlas/mainUI/laba02_bg.png",
     # Dynamic UI groups normally fall back to these atlas bundles at runtime.
     "atlas/Checkpoint/MainChallenge.atlas",
@@ -247,6 +248,12 @@ def main() -> int:
 
     code = code_path.read_text(encoding="utf-8", errors="replace")
     queue = path_candidates(code)
+    # AudioManager calls use bare filenames, while the runtime resolves them under res/music/.
+    audio_refs = {
+        f"res/music/{name}"
+        for name in re.findall(r"""["']([A-Za-z0-9_-]+\.(?:wav|mp3))["']""", code, re.IGNORECASE)
+    }
+    queue.update(audio_refs)
     # Some UI assets are referenced relative to the atlas directory (mainUI/)
     # rather than with an explicit atlas/ prefix in the minified bundle.
     queue.update(
