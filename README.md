@@ -2,8 +2,8 @@
 
 > 当前状态：**断网启动、主城移动、精灵升级、主线 PvE 第 2–4 关和冷启动存档均已有模拟器日志证明；精灵仓库弹窗正在补做 UI 交互验收。项目尚未达到完整游戏复原或正式发布标准。**
 >
-> 当前验证代码：`4ca793f`。最新离线构建 #96 正在运行：
-> [Build and test offline Android APK #96](https://github.com/chenmoulaile/apk/actions/runs/45394811036)。
+> 当前验证代码：`65613d5`。最新离线构建 #105 正在运行：
+> [Build and test offline Android APK #105](https://github.com/chenmoulaile/apk/actions/runs/45403011723)。
 
 ## 已经由断网模拟器实测的能力
 
@@ -21,6 +21,10 @@
 
 更早的 [Actions #89](https://github.com/chenmoulaile/apk/actions/runs/45378091812) 只推进并持久化到第 3 关，不能作为第 4 关的验收依据。
 
+## H5 资源归档
+
+原始客户端和静态资源已通过 [H5 归档工作流 #31](https://github.com/chenmoulaile/apk/actions/runs/45401521413) 保存到 GitHub Release：`h5-source-20261123`。归档包含 3,042 个文件和 SHA-256 manifest；另有 590 个请求返回 HTTP 404，主要是已不存在的可选资源。离线构建现在优先使用该 Release，只有归档不可用时才访问原资源服务器，并以 #92 的实际 APK 工件作为最终缓存回退。
+
 ## 当前实现边界
 
 - 本地登录、网络请求桩、本地玩家存档和部分基础 UI 行为由离线补丁提供。
@@ -31,7 +35,7 @@
 
 ## 最新构建与下载
 
-请以 [Actions #96](https://github.com/chenmoulaile/apk/actions/runs/45394811036) 的结论和 Artifacts 为准。只有当工作流显示成功且日志中出现 `OFFLINE_SCENE_TEST=PASS` 时，才应把该工件视为通过当前主线离线验收的 APK。
+请以 [Actions #105](https://github.com/chenmoulaile/apk/actions/runs/45403011723) 的结论和 Artifacts 为准。只有当工作流显示成功且日志中出现 `OFFLINE_SCENE_TEST=PASS` 时，才应把该工件视为通过当前主线离线验收的 APK。
 
 较早的历史构建不代表当前 `main` 分支的代码与验证状态。
 
