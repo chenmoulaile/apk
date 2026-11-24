@@ -114,6 +114,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-pet-closed-screen.png \
   && grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
+  && grep -q "local combat simulation stage 1 rounds" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && grep -q "local save restored 1069500 4" tmp/offline-test/logcat.txt \

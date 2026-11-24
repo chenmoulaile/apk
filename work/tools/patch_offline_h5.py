@@ -419,7 +419,7 @@ HOOK = r"""
   function combatSpirit(id,level,hp){
     var s=new rp.CombatSpirit();
     s.id=Number(id)||0;s.level=Number(level)||1;
-    s.status=s.id?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.UNKNOW;
+    s.status=s.id?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.CSS_UNKNOW;
     s.hp=long(s.id?Math.max(1,Number(hp)||1):0);
     s.fullHp=long(s.id?Math.max(1,Number(hp)||1):0);
     s.oldHp=s.id?Math.max(1,Number(hp)||1):0;
@@ -569,15 +569,19 @@ HOOK = r"""
           offlineApplySkill(data.steps,side,slot,r,actor,actors,side===0?enemySide:playerSide);
         }
       }
+      var roundEnd=new rp.CombatOneStep();roundEnd.doWhat=rp.CombatStepType.ROUND_END;
+      roundEnd.round=r;roundEnd.source=0;roundEnd.changes=[];data.steps.push(roundEnd);
       if(!offlineLivingCount(enemySide)||!offlineLivingCount(playerSide))break;
     }
     var playerAlive=offlineLivingCount(playerSide),enemyAlive=offlineLivingCount(enemySide);
+    var playerCount=playerSide.filter(function(p){return !!p;}).length;
+    var enemyCount=enemySide.filter(function(p){return !!p;}).length;
     data.result=enemyAlive===0?rp.CombatResult.WIN:playerAlive===0?rp.CombatResult.LOSE:
       playerSide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)>=
       enemySide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)?rp.CombatResult.WIN:rp.CombatResult.LOSE;
     var finish=new rp.CombatOneStep();finish.doWhat=rp.CombatStepType.END;finish.round=round;finish.source=0;
     data.steps.push(finish);data.totalRound=round;data.time=Math.max(3,round*3);data.rewards=[];
-    data.ownDeadPetNum=6-playerAlive;data.enermyDeadPetNum=6-enemyAlive;
+    data.ownDeadPetNum=playerCount-playerAlive;data.enermyDeadPetNum=enemyCount-enemyAlive;
     log("local combat simulation","stage",stage,"rounds",round,"steps",data.steps.length,
       "players",playerAlive,"enemies",enemyAlive,"result",data.result);
     return data;
@@ -592,8 +596,15 @@ HOOK = r"""
     var rsp=new rp.NewSceneGradeFightRsp();rsp.ret=0;rsp.sceneLevel=nextLevel;
     rsp.sceneMapId=cfg&&cfg.sceneId||1;rsp.quickFightTimes=0;rsp.freeTimes=1;
     rsp.level=cfg&&cfg.level||1;rsp.nextLevelExp=long(0);
-    var result=new rp.NewSceneResultInfo();result.sceneLevel=nextLevel;
-    result.fightData=[makeOfflineCombat(nextLevel)];rsp.fightInfo=[result];
+    var result=new rp.NewSceneResultInfo(),combat=makeOfflineCombat(nextLevel);
+    result.sceneLevel=nextLevel;result.fightData=[combat];rsp.fightInfo=[result];
+    if(combat.result!==rp.CombatResult.WIN){
+      rsp.sceneLevel=oldLevel;
+      rsp.sceneMapId=u&&u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneMapId||cfg&&cfg.sceneId||1;
+      result.sceneLevel=oldLevel;rsp.actionArr=[];
+      log("local scene battle lost; progression retained",oldLevel,"attempted",nextLevel);
+      return rsp;
+    }
     rsp.actionArr=(cfg&&cfg.actionArr||[]).map(function(a){
       var params=Array.isArray(a.params)?a.params.slice():[];
       if(!params.length){if(a.para1!=null)params.push(a.para1);if(a.para2!=null)params.push(a.para2);}
