@@ -90,6 +90,7 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/items/" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: res/icons/" tmp/offline-test/logcat.txt \
   && ! grep -q "unhandledrejection TypeError" tmp/offline-test/logcat.txt \
+  && ! grep -q "lost skin: combat/ani1/" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
   && test -s tmp/offline-test/offline-move-screen.png \
@@ -100,5 +101,5 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
-echo "OFFLINE_SCENE_TEST=FAIL (scene/login/main PvE response, rewards, save restore, fatal JS rejection, missing assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
+echo "OFFLINE_SCENE_TEST=FAIL (scene/login/main PvE response, rewards, save restore, combat animation atlas, fatal JS rejection, missing assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
 exit 1

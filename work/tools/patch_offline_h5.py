@@ -10,6 +10,30 @@ HOOK = r"""
   "use strict";
   var KEY="super-spirit-ball-offline-save-v1", UID=730001, NAME="离线训练师";
   var log=function(){try{console.log.apply(console,["[Offline]"].concat([].slice.call(arguments)));}catch(e){}};
+  // The original combat loader fetches ani1.atlas for the special "jg" buff
+  // but forgets to register its animation frames before combat starts.
+  try{
+    var combatResManager=typeof game!=="undefined"&&game.combat&&game.combat.CombatResManager;
+    if(combatResManager&&combatResManager.prototype&&!combatResManager.prototype.__offlineJgAtlasFix){
+      var originalLoadResInCombat=combatResManager.prototype.loadResInCombat;
+      combatResManager.prototype.loadResInCombat=function(){
+        var result=originalLoadResInCombat.apply(this,arguments);
+        return Promise.resolve(result).then(function(value){
+          try{
+            var atlasUrl="atlas/combat/ani1.atlas";
+            if(Laya.loader.getRes(atlasUrl)){
+              Laya.Animation.createFrames(atlasUrl,"jg");
+              log("local ani1 atlas frames initialized",atlasUrl);
+            }else{
+              log("local ani1 atlas not present after combat preload",atlasUrl);
+            }
+          }catch(e){log("local ani1 atlas init error",e&&e.stack||e);}
+          return value;
+        });
+      };
+      combatResManager.prototype.__offlineJgAtlasFix=true;
+    }
+  }catch(e){log("offline combat atlas patch",e&&e.stack||e);}
   window.addEventListener("unhandledrejection",function(e){log("unhandledrejection",e.reason&&e.reason.stack||e.reason);});
   window.addEventListener("error",function(e){log("window error",e.message,e.filename,e.lineno,e.error&&e.error.stack);});
   var read=function(){
