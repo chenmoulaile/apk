@@ -43,8 +43,8 @@ def patch(root: Path) -> None:
     path.write_text(source, encoding="utf-8")
     # QuickSDK may push a login callback before the H5 document has parsed its bridge stub.
     # Guard the native javascript: URL so an early callback cannot raise a page-level ReferenceError.
-    callback_marker = "javascript:CallbackFromAndroid('"
-    guarded_marker = "javascript:if(window.CallbackFromAndroid)CallbackFromAndroid('"
+    callback_marker = "CallbackFromAndroid"
+    guarded_marker = "if(window.CallbackFromAndroid)CallbackFromAndroid"
     callback_matches = []
     for smali in root.rglob("*.smali"):
         content = smali.read_text(encoding="utf-8", errors="replace")
