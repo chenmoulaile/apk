@@ -36,8 +36,11 @@ HOOK = r"""
   function userInfo(){
     if(saved.restored&&saved.restored.baseInfo){
       current=saved.restored;
+      if(!current.extInfo)current.extInfo=new rp.UserExtInfo();
+      if(!current.extInfo.newGuildInfo)current.extInfo.newGuildInfo=new rp.NewGuildInfo();
+      current.extInfo.newGuildInfo.version=0;current.extInfo.newGuildInfo.steps=current.extInfo.newGuildInfo.steps||{};
       if(!current.collectCardInfo)current.collectCardInfo=new rp.CardCollectInfo();
-      if(!current.collectCardInfo.nowSeason)current.collectCardInfo.nowSeason=currentCardSeason();
+      if(!current.collectCardInfo.nowSeason||!GC.G().CARD_COLLECT_SEASON_CONF.getDes(current.collectCardInfo.nowSeason))current.collectCardInfo.nowSeason=currentCardSeason();
       if(!current.petRoomInfo)current.petRoomInfo=new rp.PetRoomInfo();
       return current;
     }
@@ -49,7 +52,9 @@ HOOK = r"""
     b.moneyInfo.gold=long(m.gold==null?1000000:m.gold);b.moneyInfo.diamond=Number(m.diamond==null?10000:m.diamond);
     b.moneyInfo.cash=Number(m.cash==null?10000:m.cash);b.moneyInfo.petCoin=long(m.petCoin||100000);b.moneyInfo.equipCoin=long(m.equipCoin||100000);
     b.moneyInfo.warScoreCoin=long(m.warScoreCoin||0);b.moneyInfo.honorCoin=long(m.honorCoin||0);b.moneyInfo.rankGameScore=Number(m.rankGameScore)||0;u.baseInfo=b;
-    u.extInfo=new rp.UserExtInfo();u.itemPackInfo=new rp.ItemPackInfo();u.petPackInfo=new rp.PetPackInfo();u.petStorageInfo=new rp.PetStorageInfo();
+    u.extInfo=new rp.UserExtInfo();
+    u.extInfo.newGuildInfo=new rp.NewGuildInfo();u.extInfo.newGuildInfo.version=0;u.extInfo.newGuildInfo.steps={};
+    u.itemPackInfo=new rp.ItemPackInfo();u.petPackInfo=new rp.PetPackInfo();u.petStorageInfo=new rp.PetStorageInfo();
     var prior=saved.petPackInfo&&saved.petPackInfo.packArray&&saved.petPackInfo.packArray[0]&&saved.petPackInfo.packArray[0].pet;
     var p=petFrom(prior),packs=[];for(var i=0;i<6;i++){var n=new rp.PackNode();n.index=i;n.state=i===0?1:0;n.equip=[];if(i===0){n.pet=p;n.combatPos=1;}packs.push(n);}
     u.petPackInfo.packArray=packs;u.petStorageInfo.petArray=[p];u.petStorageInfo.sidGenerator=100002;
@@ -58,6 +63,7 @@ HOOK = r"""
     u.newSceneGradeInfo=new rp.NewSceneGradeInfo();u.newSceneGradeInfo.sceneLevel=1;u.newSceneGradeInfo.sceneMapId=1;
     u.growthFound=new rp.GrowthFound();
     u.collectCardInfo=new rp.CardCollectInfo();u.collectCardInfo.nowSeason=currentCardSeason();
+    if(!GC.G().CARD_COLLECT_SEASON_CONF.getDes(u.collectCardInfo.nowSeason))u.collectCardInfo.nowSeason=19;
     var typed={
       teamPkEffectInfo:"PkAttrInfo",relicInfo:"UserRelicInfo",shopInfo:"ShopInfo",hallInfo:"DBHallInfo",
       monopolyInfo:"DBMonopolyInfo",assitPetPackInfo:"AssitPetPackInfo",treasureInfo:"DBTreasureInfo",
@@ -140,6 +146,7 @@ HOOK = r"""
       try{for(var key in r)if(r[key]===null)r[key]={};}catch(_){}
       if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();current=r.userInfo;r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
         r.openSvrDays=20;r.openSvrTime=Math.floor(Date.now()/1000)-20*86400;r.mergeSvrDays=0;r.mergeSvrTime=0;r.loginNotice={title:"",nickName:"",content:"",name:"",date:""};log("local LoginRsp");}
+      else if(Resp===rp.HeartBeatRsp){r.ret=0;r.serverMtime=long(Date.now());log("local heartbeat");}
       else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
       if(cb)setTimeout(function(){try{cb.call(ctx||null,r);}catch(e){log("response callback",e&&e.stack||e);}},0);
       return Promise.resolve(r);
@@ -150,6 +157,25 @@ HOOK = r"""
     L.prototype.prelogin=function(){this._isNewUser=false;this.currentZone={zone_id:1,user_id:UID,name:"本地离线服",status:1,repair:0};this.host="127.0.0.1";this.port=19999;DM.userID=long(UID);return Promise.resolve();};
     if(game.module.login.LoginUI){var ui=game.module.login.LoginUI.prototype,old=ui.getServerList;ui.getServerList=function(){old.call(this);var self=this;Laya.timer.once(350,this,function(){if(self.currentServerNode)self.onStartClick();});};}
   }
+  try{
+    var cardModel=mdl.CardCollect.CardCollectModel.prototype,cardInit=cardModel.init;
+    cardModel.init=function(data){
+      data=data||new rp.CardCollectInfo();
+      if(!data.cards)data.cards={};if(!data.cardMails)data.cardMails=[];
+      if(!data.taskProgress)data.taskProgress={};if(!data.buyLimit)data.buyLimit={};
+      if(!data.cardGroupAwards)data.cardGroupAwards={};
+      if(!data.nowSeason||!GC.G().CARD_COLLECT_SEASON_CONF.getDes(data.nowSeason))data.nowSeason=currentCardSeason();
+      log("card collection initialized",data.nowSeason);
+      return cardInit.call(this,data);
+    };
+    cardModel.getTime=function(){
+      if(!this.data)this.data=new rp.CardCollectInfo();
+      if(!this.data.nowSeason||!GC.G().CARD_COLLECT_SEASON_CONF.getDes(this.data.nowSeason))this.data.nowSeason=currentCardSeason();
+      var cfg=GC.G().CARD_COLLECT_SEASON_CONF.getDes(this.data.nowSeason);
+      if(!cfg){var now=Date.now()/1000;return [now-86400,now+86400];}
+      this.getCurSeasonCardCfgs();return [cfg.startTime,cfg.endTime];
+    };
+  }catch(cardPatchError){log("card model patch",cardPatchError);}
   if(typeof DM!=="undefined"&&DM.G){var dm=DM.G(),change=dm.onUserInfoChange;dm.onUserInfoChange=function(e){var r=change&&change.call(this,e);save();return r;};}
   function ensure(){if(!current)current=userInfo();if(typeof DM!=="undefined"&&DM.G){DM.G().userInfo=current;DM.G().userLeadValue=[];DM.G().offineInfo=new rp.OffineLineInfo();DM.G().openSvrDays=20;DM.serverTime=Date.now();}save();}
   window.OfflineGame={
