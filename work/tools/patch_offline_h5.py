@@ -240,6 +240,125 @@ HOOK = r"""
       log("local gold reward",amount,String(m.gold));save();
     }catch(e){log("local gold update",e&&e.stack||e);}
   }
+  function addLocalPointItem(id,amount){
+    try{
+      var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+      if(!u||!u.baseInfo)return;
+      var map=u.baseInfo.newPointItemMap||(u.baseInfo.newPointItemMap={});
+      id=Number(id);amount=Number(amount)||0;
+      map[id]=Math.max(0,Number(map[id])||0)+amount;
+      log("local point item reward",id,amount,map[id]);
+    }catch(e){log("local point item update",e&&e.stack||e);}
+  }
+  function addLocalItem(id,amount){
+    try{
+      var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+      if(!u)return;
+      if(!u.itemPackInfo)u.itemPackInfo=new rp.ItemPackInfo();
+      if(!u.itemPackInfo.idMap)u.itemPackInfo.idMap={};
+      id=Number(id);amount=Number(amount)||0;
+      var item=u.itemPackInfo.idMap[id];
+      if(!item)item=u.itemPackInfo.idMap[id]=new rp.ItemBase();
+      item.id=id;item.count=Math.max(0,Number(item.count)||0)+amount;
+      try{
+        if(typeof DM!=="undefined"&&DM.G){
+          var dm=DM.G();
+          dm.itemIdMap=dm.itemIdMap||{};dm.itemIdMap[id]=item;
+          if(Array.isArray(dm.itemPackInfos)){
+            var at=dm.itemPackInfos.findIndex(function(x){return x&&Number(x.id)===id;});
+            if(at<0)dm.itemPackInfos.push(item);else dm.itemPackInfos[at]=item;
+          }
+        }
+      }catch(_){}
+      log("local item reward",id,amount,item.count);
+    }catch(e){log("local item update",e&&e.stack||e);}
+  }
+  function applyLocalRewardAction(a){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo||!a)return;
+    var p=a.params||[],type=Number(a.type),amount=Number(p[0])||0;
+    if(type===Number(rp.Action.ActionTye.ADD_EXP)){
+      u.baseInfo.totalExp=long(Number(u.baseInfo.totalExp||0)+amount);
+      u.baseInfo.oldTotalExp=long(Number(u.baseInfo.oldTotalExp||0)+amount);
+      log("local trainer exp reward",amount,String(u.baseInfo.totalExp));
+    }else if(type===Number(rp.Action.ActionTye.ADD_ITEM)){
+      addLocalItem(p[0],p[1]);
+    }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)){
+      addLocalPointItem(p[0],p[1]);
+    }
+  }
+  function localPetLevelCostAvailable(u,cfg){
+    var actions=cfg&&cfg.actionArr||[],money=u.baseInfo.moneyInfo||new rp.MoneyInfo(),points=u.baseInfo.newPointItemMap||{};
+    for(var i=0;i<actions.length;i++){
+      var a=actions[i]||{},type=Number(a.type),id=Number(a.para1)||0,count=Number(a.para2)||0;
+      if(type===Number(rp.Action.ActionTye.ADD_GOLD)&&Number(money.gold||0)<id)return false;
+      if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)&&(Number(points[id])||0)<count)return false;
+      if(type===Number(rp.Action.ActionTye.ADD_ITEM)){
+        var item=u.itemPackInfo&&u.itemPackInfo.idMap&&u.itemPackInfo.idMap[id];
+        if(Number(item&&item.count||0)<count)return false;
+      }
+    }
+    return true;
+  }
+  function consumeLocalPetLevelCost(u,cfg){
+    var actions=cfg&&cfg.actionArr||[],money=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo());
+    var points=u.baseInfo.newPointItemMap||(u.baseInfo.newPointItemMap={});
+    for(var i=0;i<actions.length;i++){
+      var a=actions[i]||{},type=Number(a.type),id=Number(a.para1)||0,count=Number(a.para2)||0;
+      if(type===Number(rp.Action.ActionTye.ADD_GOLD))money.gold=long(Math.max(0,Number(money.gold||0)-id));
+      else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM))points[id]=Math.max(0,(Number(points[id])||0)-count);
+      else if(type===Number(rp.Action.ActionTye.ADD_ITEM)){
+        var item=u.itemPackInfo.idMap[id];item.count=Math.max(0,(Number(item.count)||0)-count);
+      }
+    }
+  }
+  function makeOfflinePetGrowupRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;var index=Number(req&&req.index),packs=normalizePetPack(u);
+    if(!isFinite(index)||Math.floor(index)!==index||index<0||index>=18||!packs[index]||!packs[index].pet){r.ret=1;return r;}
+    var pet=packs[index].pet,oldLevel=Number(pet.level)||1,bulk=Number(req&&req.type)===1,changed=0;
+    var spiritCfg=null,starDes=null;
+    try{
+      spiritCfg=GC.G().spiritConfig.getDes(pet.id);
+      GC.G().PetStarConf.getDesList().some(function(x){if(x.templateId===spiritCfg.starTemplateId&&x.star===Number(pet.starLevel||spiritCfg.quality)){starDes=x;return true;}return false;});
+    }catch(_){}
+    var levelLimit=Number(starDes&&starDes.levelLimit)||100;
+    if(!u.petCrystalInfo)u.petCrystalInfo=new rp.PetCrystalInfo();
+    while(changed<120){
+      var nextLevel=Number(pet.level||1)+1,nextCfg=GC.G().petLevelConfig.getDes(nextLevel);
+      if(!nextCfg||Number(pet.level)>=levelLimit)break;
+      if(Number(pet.level)>=120&&Number(pet.level)>=Number(u.petCrystalInfo.crystalLevel||0)+40)break;
+      if(!localPetLevelCostAvailable(u,nextCfg))break;
+      consumeLocalPetLevelCost(u,nextCfg);
+      var oldCfg=GC.G().petLevelConfig.getDes(Number(pet.level)||1);
+      var oldHp=Number(pet.hp)||Number(spiritCfg&&spiritCfg.hp)||0;
+      var oldAttack=Number(pet.attack)||Number(spiritCfg&&spiritCfg.attack)||0;
+      var oldDefense=Number(pet.defense)||Number(spiritCfg&&spiritCfg.defense)||0;
+      function scaled(value,base,strength){
+        var before=Number(oldCfg&&oldCfg[strength])||10000,after=Number(nextCfg[strength])||before;
+        return Math.round((Number(value)||Number(base)||0)*after/before);
+      }
+      pet.hp=long(scaled(oldHp,spiritCfg&&spiritCfg.hp,"hpStrength"));
+      pet.attack=long(scaled(oldAttack,spiritCfg&&spiritCfg.attack,"attackStrength"));
+      pet.defense=long(scaled(oldDefense,spiritCfg&&spiritCfg.defense,"defenseStrength"));
+      pet.level=nextLevel;
+      var score=Number(pet.fightScore)||0;
+      score+=1.1*(Number(pet.hp)-oldHp)+10*(Number(pet.attack)-oldAttack)+10*(Number(pet.defense)-oldDefense);
+      pet.fightScore=long(Math.round(score));
+      changed++;
+      if(!bulk)break;
+    }
+    if(!changed){r.ret=1;log("local pet growup blocked",index,oldLevel,levelLimit);return r;}
+    r.ret=0;r.level=pet.level;r.exp=Number(pet.exp)||0;r.pet=pet;r.crystalLevel=Number(u.petCrystalInfo.crystalLevel)||0;
+    packs[index].pet=pet;u.petPackInfo.packArray=packs;
+    if(u.petStorageInfo&&Array.isArray(u.petStorageInfo.petArray)){
+      for(var j=0;j<u.petStorageInfo.petArray.length;j++)if(u.petStorageInfo.petArray[j]&&u.petStorageInfo.petArray[j].genId===pet.genId)u.petStorageInfo.petArray[j]=pet;
+    }
+    log("local pet growup",index,oldLevel+"->"+pet.level,"hp",String(pet.hp),"attack",String(pet.attack),"defense",String(pet.defense),
+      "gold",String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),"point56",Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[56]||0));
+    save();return r;
+  }
   function combatSpirit(id,level,hp){
     var s=new rp.CombatSpirit();
     s.id=id||0;s.level=level||1;s.status=id?rp.CombatSpiritStatus.ALIVE:rp.CombatSpiritStatus.UNKNOW;
@@ -280,11 +399,17 @@ HOOK = r"""
     rsp.level=cfg&&cfg.level||1;rsp.nextLevelExp=long(0);
     var result=new rp.NewSceneResultInfo();result.sceneLevel=nextLevel;
     result.fightData=[makeOfflineCombat(nextLevel)];rsp.fightInfo=[result];
-    rsp.actionArr=(cfg&&cfg.actionArr||[]).map(function(a){return new rp.Action(a);});
+    rsp.actionArr=(cfg&&cfg.actionArr||[]).map(function(a){
+      var params=Array.isArray(a.params)?a.params.slice():[];
+      if(!params.length){if(a.para1!=null)params.push(a.para1);if(a.para2!=null)params.push(a.para2);}
+      return offlineAction(a.type,params);
+    });
     if(!rsp.actionArr.length)rsp.actionArr=[offlineAction(rp.Action.ActionTye.ADD_GOLD,[10000])];
     var gold=0;
     rsp.actionArr.forEach(function(a){
-      if(Number(a.type)===Number(rp.Action.ActionTye.ADD_GOLD))gold+=Number(a.params&&a.params[0]||0);
+      var type=Number(a.type);
+      if(type===Number(rp.Action.ActionTye.ADD_GOLD))gold+=Number(a.params&&a.params[0]||0);
+      else applyLocalRewardAction(a);
     });
     if(gold<=0){
       gold=10000;
@@ -300,6 +425,10 @@ HOOK = r"""
     if(saved.restored&&saved.restored.baseInfo){
       current=saved.restored;
       log("local save restored",String(current.baseInfo.moneyInfo&&current.baseInfo.moneyInfo.gold||0),Number(current.newSceneGradeInfo&&current.newSceneGradeInfo.sceneLevel||1));
+      var restoredPet=current.petPackInfo&&current.petPackInfo.packArray&&current.petPackInfo.packArray[0]&&current.petPackInfo.packArray[0].pet;
+      log("local save restored pet",Number(restoredPet&&restoredPet.level||0),String(restoredPet&&restoredPet.hp||0),String(restoredPet&&restoredPet.attack||0),String(restoredPet&&restoredPet.defense||0));
+      var restoredPoints=current.baseInfo.newPointItemMap||{};
+      log("local save restored points",Number(restoredPoints[56]||0),Number(restoredPoints[59]||0));
       if(!current.extInfo)current.extInfo=new rp.UserExtInfo();
       if(!current.extInfo.newGuildInfo)current.extInfo.newGuildInfo=new rp.NewGuildInfo();
       current.extInfo.newGuildInfo.version=0;current.extInfo.newGuildInfo.steps=current.extInfo.newGuildInfo.steps||{};
@@ -319,12 +448,16 @@ HOOK = r"""
     b.moneyInfo=new rp.MoneyInfo();var m=old.moneyInfo||{};
     b.moneyInfo.gold=long(m.gold==null?1000000:m.gold);b.moneyInfo.diamond=Number(m.diamond==null?10000:m.diamond);
     b.moneyInfo.cash=Number(m.cash==null?10000:m.cash);b.moneyInfo.petCoin=long(m.petCoin||100000);b.moneyInfo.equipCoin=long(m.equipCoin||100000);
-    b.moneyInfo.warScoreCoin=long(m.warScoreCoin||0);b.moneyInfo.honorCoin=long(m.honorCoin||0);b.moneyInfo.rankGameScore=Number(m.rankGameScore)||0;u.baseInfo=b;
+    b.moneyInfo.warScoreCoin=long(m.warScoreCoin||0);b.moneyInfo.honorCoin=long(m.honorCoin||0);b.moneyInfo.rankGameScore=Number(m.rankGameScore)||0;
+    b.newPointItemMap=old.newPointItemMap||{};
+    if(b.newPointItemMap[56]==null)b.newPointItemMap[56]=5000;
+    log("local point item initial",56,Number(b.newPointItemMap[56]||0));
+    u.baseInfo=b;
     u.extInfo=new rp.UserExtInfo();
     u.extInfo.newGuildInfo=new rp.NewGuildInfo();u.extInfo.newGuildInfo.version=0;u.extInfo.newGuildInfo.steps={};
     u.itemPackInfo=new rp.ItemPackInfo();u.petPackInfo=new rp.PetPackInfo();u.petStorageInfo=new rp.PetStorageInfo();
     var prior=saved.petPackInfo&&saved.petPackInfo.packArray&&saved.petPackInfo.packArray[0]&&saved.petPackInfo.packArray[0].pet;
-    var p=petFrom(prior),packs=[];for(var i=0;i<6;i++){var n=new rp.PackNode();n.index=i;n.state=i===0?1:0;n.equip=[];if(i===0){n.pet=p;n.combatPos=1;}packs.push(n);}
+    var p=petFrom(prior),packs=[];for(var i=0;i<18;i++){var n=new rp.PackNode();n.index=i+1;n.state=i===0?1:0;n.equip=[];if(i===0){n.pet=p;n.combatPos=1;}packs.push(n);}
     u.petPackInfo.packArray=packs;u.petStorageInfo.petArray=[p];u.petStorageInfo.sidGenerator=100002;
     u.sceneBagInfo=new rp.SceneBagInfo();u.sceneBagInfo.sceneBag=new rp.SceneStorageBag();u.sceneBagInfo.limitInfo=new rp.SceneLimitInfo();
     u.redotInfo=new rp.RedotInfo();u.activityInfo=new rp.ActivityInfo();u.petRoomInfo=new rp.PetRoomInfo();u.happyBeachInfo=new rp.HappyBeachInfo();
@@ -367,7 +500,10 @@ HOOK = r"""
   function save(){
     try{var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);if(!u||!u.baseInfo)return;
       var p=u.petPackInfo&&u.petPackInfo.packArray&&u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet,m=u.baseInfo.moneyInfo;
-      var x={version:3,quickCombatUsed:quickCombatUsed,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp}:null}]}};
+      var x={version:4,quickCombatUsed:quickCombatUsed,userInfo:{baseInfo:{userId:String(u.baseInfo.userId),name:u.baseInfo.name,sex:u.baseInfo.sex,level:u.baseInfo.level,vipLevel:u.baseInfo.vipLevel,sceneLevel:u.baseInfo.sceneLevel,avatarId:u.baseInfo.avatarId,
+        newPointItemMap:u.baseInfo.newPointItemMap||{},
+        moneyInfo:{gold:String(m.gold||0),diamond:m.diamond||0,cash:m.cash||0,petCoin:String(m.petCoin||0),equipCoin:String(m.equipCoin||0),warScoreCoin:String(m.warScoreCoin||0),honorCoin:String(m.honorCoin||0),rankGameScore:m.rankGameScore||0}}},
+        petPackInfo:{packArray:[{pet:p?{id:p.id,level:p.level,genId:p.genId,name:p.name,exp:p.exp,hp:String(p.hp||0),attack:String(p.attack||0),defense:String(p.defense||0),fightScore:String(p.fightScore||0),starLevel:p.starLevel,insight:p.insight,washHp:p.washHp,washAttack:p.washAttack,washDefense:p.washDefense}:null}]}};
       try{var bytes=rp.UserDataInfo.encode(u).finish(),binary="";for(var i=0;i<bytes.length;i++)binary+=String.fromCharCode(bytes[i]);x.proto=btoa(binary);}
       catch(protoError){log("protobuf save fallback",protoError);}
       var persisted={version:x.version,quickCombatUsed:quickCombatUsed,userInfo:x.userInfo,petPackInfo:x.petPackInfo};if(x.proto)persisted.proto=x.proto;
@@ -422,6 +558,13 @@ HOOK = r"""
       else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
       else if(Resp===rp.NewSceneGradeFightRsp){
         r=makeOfflineSceneFight(req);
+      }
+      else if(Resp===rp.GetPkAttrInfoRsp){
+        r.ret=0;r.attr=new rp.PkAttrInfo();r.teamPkAttr=new rp.PkAttrInfo();
+        log("local pet attributes calculated",Number(req&&req.petIndex||0));
+      }
+      else if(Resp===rp.PetGrowupExpRsp){
+        r=makeOfflinePetGrowupRsp(req,r);
       }
       else if(Resp===rp.GetPetStorageRsp){
         r=makeOfflinePetStorageRsp(r);
