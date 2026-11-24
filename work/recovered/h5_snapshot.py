@@ -207,6 +207,15 @@ def main() -> int:
             config_output.write_bytes(decoded)
             text_config = decoded.decode("utf-8", errors="replace")
             queue.update(path_candidates(text_config))
+            # UI textures in the packed config commonly omit their atlas/ prefix.
+            queue.update(
+                "atlas/" + item
+                for item in re.findall(
+                    r"""["'](mainUI/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|webp))["']""",
+                    text_config,
+                    re.IGNORECASE,
+                )
+            )
             try:
                 parsed = json.loads(text_config)
                 def walk(value: object) -> None:
