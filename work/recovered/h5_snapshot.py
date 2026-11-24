@@ -194,7 +194,7 @@ def main() -> int:
     queue.update(
         "atlas/" + item
         for item in re.findall(
-            r'["\\'](mainUI/[A-Za-z0-9_./-]+\\.(?:png|jpg|jpeg|webp))["\\']',
+            r"[\"\'](mainUI/[A-Za-z0-9_./-]+\.(?:png|jpg|jpeg|webp))[\"\']",
             code,
             re.IGNORECASE,
         )
