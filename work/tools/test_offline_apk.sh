@@ -24,9 +24,15 @@ timeout 10s adb shell input tap 650 790 > tmp/offline-test/map-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-move-screen.png
 timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-move-screen.png > /dev/null 2>&1
-# Invoke the visible Quick Battle button and capture the resulting state.
-timeout 10s adb shell input tap 845 1445 > tmp/offline-test/quick-battle-tap.txt 2>&1
-sleep 25
+# The Quick Battle shortcut is in the upper-right row above the bottom tabs.
+# The 720x1280 game canvas is scaled to the 1080x1920 emulator display.
+timeout 10s adb shell input tap 1010 1640 > tmp/offline-test/quick-battle-tap.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-quick-combat-panel.png
+timeout 30s adb pull /sdcard/offline-quick-combat-panel.png tmp/offline-test/offline-quick-combat-panel.png > /dev/null 2>&1
+# Quick Combat panel's yellow claim button is centered at logical (336,806).
+timeout 10s adb shell input tap 504 1209 > tmp/offline-test/claim-quick-battle-tap.txt 2>&1
+sleep 20
 timeout 20s adb shell screencap -p /sdcard/offline-battle-screen.png
 timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-battle-screen.png > /dev/null 2>&1
 timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
@@ -53,8 +59,8 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt | grep -vF "Uncaught ReferenceError: CallbackFromAndroid is not defined" || true)
 if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
-  && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
-  && grep -q "local QuickHangupOperateRsp" tmp/offline-test/logcat.txt \
+  && [ "$(grep -c "local QuickHangupOperateRsp" tmp/offline-test/logcat.txt)" -ge 2 ] \
+  && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: role/1/" tmp/offline-test/logcat.txt \
@@ -63,6 +69,7 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
   && test -s tmp/offline-test/offline-move-screen.png \
+  && test -s tmp/offline-test/offline-quick-combat-panel.png \
   && test -s tmp/offline-test/offline-battle-screen.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
