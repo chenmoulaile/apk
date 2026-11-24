@@ -195,7 +195,7 @@ def patch(root: Path) -> None:
     html=html.replace('<script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>','')
     bridge='<script>window.CallbackFromAndroid=window.CallbackFromAndroid||function(){};window.CallbackFromIOS=window.CallbackFromIOS||function(){};</script>'
     if 'window.CallbackFromAndroid=window.CallbackFromAndroid||function(){}' not in html:
-        html=html.replace('<head>','<head>\\n'+bridge,1)
+        html=html.replace('<head>','<head>\n'+bridge,1)
     html=html.replace("https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/libQuickSDKH5_To_Client.js","./libQuickSDKH5_To_Client.js")
     if "offline-menu-button" not in html:
         html=html.replace("</body>",OVERLAY+"\n</body>")
