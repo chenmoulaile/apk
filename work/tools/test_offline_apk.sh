@@ -24,14 +24,19 @@ timeout 10s adb shell input tap 650 790 > tmp/offline-test/map-tap.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-move-screen.png
 timeout 30s adb pull /sdcard/offline-move-screen.png tmp/offline-test/offline-move-screen.png > /dev/null 2>&1
-# Layout-derived input coordinates: logical (660,1117) on a 720x1280 canvas, scaled 1.5x.
-timeout 10s adb shell input tap 990 1675 > tmp/offline-test/quick-battle-tap.txt 2>&1
+# Main Challenge button center: logical (355,1078), scaled to 1080x1920.
+timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
 sleep 5
-timeout 20s adb shell screencap -p /sdcard/offline-quick-combat-panel.png
-timeout 30s adb pull /sdcard/offline-quick-combat-panel.png tmp/offline-test/offline-quick-combat-panel.png > /dev/null 2>&1
-# Claim button center: panel origin (25,164) + local (336,806), scaled 1.5x.
-timeout 10s adb shell input tap 542 1455 > tmp/offline-test/claim-quick-battle-tap.txt 2>&1
-sleep 20
+timeout 20s adb shell screencap -p /sdcard/offline-main-challenge-panel.png
+timeout 30s adb pull /sdcard/offline-main-challenge-panel.png tmp/offline-test/offline-main-challenge-panel.png > /dev/null 2>&1
+# Challenge button center: panel origin (12,126) + local (346,893), scaled 1.5x.
+timeout 10s adb shell input tap 537 1529 > tmp/offline-test/open-formation-tap.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-combat-formation-panel.png
+timeout 30s adb pull /sdcard/offline-combat-formation-panel.png tmp/offline-test/offline-combat-formation-panel.png > /dev/null 2>&1
+# Formation Fight button center at logical (453,1218), scaled 1.5x.
+timeout 10s adb shell input tap 680 1827 > tmp/offline-test/start-main-fight-tap.txt 2>&1
+sleep 25
 timeout 20s adb shell screencap -p /sdcard/offline-battle-screen.png
 timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-battle-screen.png > /dev/null 2>&1
 timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
@@ -58,7 +63,8 @@ BAD_JS='Uncaught( \(in promise\))? (TypeError|ReferenceError|NotSupportedError)|
 FATAL_JS=$(grep -E "$BAD_JS" tmp/offline-test/logcat.txt | grep -vF "Uncaught ReferenceError: CallbackFromAndroid is not defined" || true)
 if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
-  && [ "$(grep -c "local QuickHangupOperateRsp" tmp/offline-test/logcat.txt)" -ge 2 ] \
+  && grep -q "local NewSceneGradeFightRsp" tmp/offline-test/logcat.txt \
+  && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/role/1.atlas" tmp/offline-test/logcat.txt \
@@ -68,10 +74,11 @@ if grep -q "local LoginRsp" tmp/offline-test/logcat.txt \
   && ! grep -q "网络不可用，请检查网络状态" tmp/offline-test/ui.xml \
   && test -s tmp/offline-test/offline-game-screen.png \
   && test -s tmp/offline-test/offline-move-screen.png \
-  && test -s tmp/offline-test/offline-quick-combat-panel.png \
+  && test -s tmp/offline-test/offline-main-challenge-panel.png \
+  && test -s tmp/offline-test/offline-combat-formation-panel.png \
   && test -s tmp/offline-test/offline-battle-screen.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
-echo "OFFLINE_SCENE_TEST=FAIL (scene/login/quick battle response missing, fatal JS rejection, missing role/combat assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
+echo "OFFLINE_SCENE_TEST=FAIL (scene/login/main PvE challenge response missing, fatal JS rejection, missing role/combat assets, or native network dialog)" | tee -a tmp/offline-test/SUMMARY.txt
 exit 1
