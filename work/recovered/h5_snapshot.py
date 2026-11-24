@@ -189,6 +189,16 @@ def main() -> int:
 
     code = code_path.read_text(encoding="utf-8", errors="replace")
     queue = path_candidates(code)
+    # Some UI assets are referenced relative to the atlas directory (mainUI/)
+    # rather than with an explicit atlas/ prefix in the minified bundle.
+    queue.update(
+        "atlas/" + item
+        for item in re.findall(
+            r'["\\'](mainUI/[A-Za-z0-9_./-]+\\.(?:png|jpg|jpeg|webp))["\\']',
+            code,
+            re.IGNORECASE,
+        )
+    )
     config_path = output / "zip.txt"
     if config_path.is_file():
         decoded = decode_config(config_path.read_bytes())

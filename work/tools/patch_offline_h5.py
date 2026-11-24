@@ -32,6 +32,14 @@ HOOK = r"""
       return chosen?chosen.seasonId:(a.length?a[a.length-1].seasonId:1);
     }catch(e){log("season fallback",e);return 19;}
   }
+  function normalizeGuideSchedule(u){
+    if(!u.guideScheduleInfo)u.guideScheduleInfo={};
+    if(!u.guideScheduleInfo.riseStepByStep)u.guideScheduleInfo.riseStepByStep={};
+    u.guideScheduleInfo.riseStepByStep.isFinish=1;
+    if(!u.guideScheduleInfo.pokemonComing)u.guideScheduleInfo.pokemonComing={};
+    u.guideScheduleInfo.pokemonComing.isFinish=1;
+    if(!u.guideScheduleInfo.challenges)u.guideScheduleInfo.challenges=[];
+  }
   function petFrom(p){var x=new rp.PetEntry();x.id=p&&p.id||3101;x.level=p&&p.level||1;x.genId=p&&p.genId||100001;x.name=p&&p.name||"皮卡丘";x.exp=p&&p.exp||0;return x;}
   function userInfo(){
     if(saved.restored&&saved.restored.baseInfo){
@@ -150,7 +158,7 @@ HOOK = r"""
       var r=new Resp();r.ret=0;
       log("local protobuf",req&&req.constructor&&req.constructor.name,Resp&&Resp.name);
       try{for(var key in r)if(r[key]===null)r[key]={};}catch(_){}
-      if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();current=r.userInfo;r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
+      if(Resp===rp.LoginRsp){r.ret=0;r.userInfo=userInfo();normalizeGuideSchedule(r.userInfo);current=r.userInfo;log("login guide defaults",!!r.userInfo.guideScheduleInfo,!!r.userInfo.guideScheduleInfo.riseStepByStep);r.serverMtime=long(Date.now());r.userLeadValue=[];r.offineInfo=new rp.OffineLineInfo();
         r.openSvrDays=20;r.openSvrTime=Math.floor(Date.now()/1000)-20*86400;r.mergeSvrDays=0;r.mergeSvrTime=0;r.loginNotice={title:"",nickName:"",content:"",name:"",date:""};log("local LoginRsp");}
       else if(Resp===rp.HeartBeatRsp){r.ret=0;r.serverMtime=long(Date.now());log("local heartbeat");}
       else if(Resp===rp.EnterSceneRsp){r.ret=0;r.sceneId=req&&req.sceneId||1;r.sceneName="离线精灵城";r.userInfos=bots();r.sceneBag=new rp.SceneBag();r.sceneBag.maxItemNum=200;r.sceneBag.curItemNum=0;r.sceneBag.maxSpiritNum=100;r.sceneBag.curSpiritNum=100;r.sceneBag.expCoinPercent=100;r.sceneBag.sceneLevelTimes=0;r.sceneBag.sceneLevel=1;log("local EnterSceneRsp + labelled bots");}
