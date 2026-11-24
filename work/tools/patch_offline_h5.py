@@ -24,18 +24,18 @@ HOOK = r"""
           var keys=Object.keys(ui).filter(function(k){var lower=k.toLowerCase();return lower===wanted||lower.indexOf(wanted+"/")===0;});
           if(!keys.length)return assets;
           var found={};
-          (function walk(value){
+          var walk=function(value){
             if(typeof value==="string"){
               var path=value.trim();
               while(path.charAt(0)==="/")path=path.slice(1);
               var lower=path.toLowerCase();
-              if(lower.startsWith("atlas/")){path=path.slice(6);lower=path.toLowerCase();}
+              if(lower.indexOf("atlas/")===0){path=path.slice(6);lower=path.toLowerCase();}
               if((lower.endsWith(".png")||lower.endsWith(".jpg")||lower.endsWith(".jpeg")||lower.endsWith(".webp"))&&lower.indexOf(wanted+"/")===0){
                 found["atlas/"+path]=true;
               }
             }else if(Array.isArray(value))value.forEach(walk);
             else if(value&&typeof value==="object")Object.keys(value).forEach(function(k){walk(k);walk(value[k]);});
-          });
+          };
           keys.forEach(function(key){walk(ui[key]);});
           var direct=Object.keys(found);
           if(direct.length){log("local dynamic UI group",group,keys.join(","),direct.length);return direct;}
