@@ -1332,6 +1332,11 @@ HOOK = r"""
     normalizeGuideSchedule(u);normalizePetPack(u);
     ensureOfflineTaskInfo(u);
     normalizeLocalEquipmentInventory(u);
+    var restoredEquipCount=(u.petPackInfo.packArray||[]).reduce(function(sum,node){
+      return sum+(node&&node.equip||[]).filter(function(x){return x&&localEquipmentPosition(x.id)>0;}).length;
+    },0);
+    log("local JSON fallback restored equipment",restoredEquipCount,
+      Object.keys(u.itemPackInfo&&u.itemPackInfo.sidMap||{}).length);
     log("local JSON fallback restored inventory",
       u.petPackInfo.packArray.length,u.petStorageInfo.petArray.length,
       Object.keys(u.itemPackInfo&&u.itemPackInfo.idMap||{}).length,
