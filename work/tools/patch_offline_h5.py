@@ -204,7 +204,6 @@ HOOK = r"""
       left.index=a+1;right.index=b+1;
     }else if(kind==="formationSwap"){
       a=Number(req&&req.formationIndex1);b=Number(req&&req.formationIndex2);
-      if(a>5)a--;if(b>5)b--;
       if(a<0||a>2||b<0||b>2){r.ret=1;return r;}
       for(var j=0;j<6;j++){
         var ia=a*6+j,ib=b*6+j,one=packs[ia],two=packs[ib];
