@@ -1258,16 +1258,17 @@ HOOK = r"""
       if(la!==lb)return lb-la;
       return (Number(b.fightScore)||0)-(Number(a.fightScore)||0);
     });
-    var top=pets.slice(0,6),map={};
-    top.forEach(function(p){
-      map[String(p.genId)]=Number(p.level)||1;
-    });
-    info.maxLevelGenIdMap=map;
+    var top=pets.slice(0,6);
     if(info.type===0){
+      var map={};
+      top.forEach(function(p){map[String(p.genId)]=Number(p.level)||1;});
+      info.maxLevelGenIdMap=map;
       info.crystalLevel=top.length?Math.min.apply(null,top.map(function(p){return Number(p.level)||1;})):1;
       info.curCrystalLevel=info.crystalLevel;
       info.maxCrystalLevel=240;
     }else{
+      // After breakthrough the six highest pets occupy the six free starter slots.
+      info.maxLevelGenIdMap={};
       info.crystalLevel=Math.max(240,Number(info.crystalLevel)||240);
       info.curCrystalLevel=info.crystalLevel;
       var ancestors={};
@@ -1316,8 +1317,6 @@ HOOK = r"""
         else requirements.points[id]=(requirements.points[id]||0)+n;
       }else if(type===Number(rp.Action.ActionTye.DEL_ITEM_BY_ID)){
         requirements.items[id]=(requirements.items[id]||0)+n;
-      }else if(type===Number(rp.Action.ActionTye.DEL_ITEM_BY_SID)){
-        requirements.itemsBySid[String(id)]=(requirements.itemsBySid[String(id)]||0)+1;
       }else{
         requirements.invalid=true;
       }
@@ -1471,6 +1470,15 @@ HOOK = r"""
       info.type=1;info.crystalLevel=240;info.curCrystalLevel=240;
       info.maxCrystalLevel=localCrystalMaxLevel(u);
       if(info.maxCrystalLevel<240)info.maxCrystalLevel=240;
+      info.maxLevelGenIdMap={};
+      top.forEach(function(p,index){
+        var slot=new rp.PetCrystalSlot();
+        slot.slotType=Number(rp.PetCrystalSlot.Type.Used);
+        slot.genId=Number(p.genId);slot.coolEndTime=0;
+        info.slotInfo[index+1]=slot;
+        p.crystalLevel=Math.min(240,localPetStarLevelLimit(p));
+        localCrystalSyncPet(u,p);
+      });
       log("local PetCrystalBreak unlocked",info.crystalLevel,info.maxCrystalLevel);
     }else{
       var level=Number(info.crystalLevel)||240,
@@ -2293,6 +2301,25 @@ HOOK = r"""
     addDiamond:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.diamond=Number(m.diamond||0)+Number(n||0);save();},
     addCash:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.cash=Number(m.cash||0)+Number(n||0);save();},
     addItem:function(id,count){ensure();addLocalItem(id,count);save();},
+    selfTestPetCrystal:function(){
+      ensure();
+      var u=DM.G().userInfo,info=localRefreshPetCrystal(u),
+        beforeCash=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash||0),
+        already=info.slotInfo&&info.slotInfo[7];
+      if(already&&Number(already.slotType)>0){
+        log("local pet crystal self-test SKIP slot7 already unlocked");
+        return {pass:true,skipped:true};
+      }
+      var req=new rp.PetCrystalUnlockReq();req.index=7;req.costType=0;
+      var rsp=makeOfflinePetCrystalUnlockRsp(req,new rp.PetCrystalUnlockRsp());
+      var slot=info.slotInfo&&info.slotInfo[7],
+        afterCash=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash||0);
+      var ok=Number(rsp.ret)===0&&slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.Unlock)&&afterCash===beforeCash-200;
+      log("local pet crystal self-test",ok?"PASS":"FAIL","ret",rsp.ret,
+        "slot7",Number(slot&&slot.slotType)||0,"cash",beforeCash,"->",afterCash);
+      save();
+      return {pass:ok,ret:rsp.ret,slot:Number(slot&&slot.slotType)||0,cash:afterCash};
+    },
     selfTestItemUse:function(){
       ensure();
       var u=DM.G().userInfo,initialGold=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),
@@ -2367,13 +2394,13 @@ OVERLAY = """
 <div id="offline-menu-button">离线菜单</div>
 <div id="offline-task-button">任务</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
