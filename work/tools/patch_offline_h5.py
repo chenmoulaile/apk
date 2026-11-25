@@ -791,7 +791,12 @@ HOOK = r"""
     r.ret=0;r.equipInfoList=localEquipmentRecords(u).filter(function(x){
       return !type||x.position===type;
     }).map(function(x){return localMakeEquipSimple(x.item,x.owner,x.position);});
+    var worn=r.equipInfoList.filter(function(x){return Number(x&&x.spiritId)>0;});
+    var wornFirst=worn[0]||null;
     log("local equipment inventory query",type,r.equipInfoList.length);
+    log("local equipment inventory detail",type,r.equipInfoList.length,
+      Number(wornFirst&&wornFirst.spiritId)||0,
+      "hp",Number(wornFirst&&wornFirst.attrInfo&&wornFirst.attrInfo.hp)||0);
     return r;
   }
   function localApplyEquipmentChange(req,r){
@@ -878,8 +883,16 @@ HOOK = r"""
       return localMakeEquipSimple(item,Number(node.pet.id),localEquipmentPosition(item.id));
     });
     refreshLocalItemIndexes(u);
-    if(changed)save();
     var gearBonus=localEquipmentBonusForNode(node);
+    if(changed){
+      // Refresh the Spirit screen immediately so occupied equipment slots appear
+      // without leaving and reopening the page.
+      localNotifyInventoryChanged(u,true);
+      save();
+    }
+    // Exercise the exact conversion used by local PvE after a successful wear.
+    // This verifies that item bonuses affect the next battle, not only the detail popup.
+    offlinePetFromEntry(node.pet,node);
     log("local equipment auto-wear",slot+1,"equipped",equipped.length,
       "positions",selectedPositions.join(","),
       "bonus",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);

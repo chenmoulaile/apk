@@ -311,7 +311,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment item reward 4000004 1 position 4" tmp/offline-test/logcat.txt \
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4" tmp/offline-test/logcat.txt \
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4 bonus 3125 229 175" tmp/offline-test/logcat.txt \
-  && grep -q "local equipment worn query 1 3" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment inventory query 2 1" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment inventory detail 2 1 3101 hp 3125" tmp/offline-test/logcat.txt \
   && grep -q "local save restored equipment 3 3" tmp/offline-test/logcat.txt \
   && grep -q "local item operations self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
@@ -323,7 +324,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "local inventory listener 2 TypeError" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
-  && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175" tmp/offline-test/logcat.txt \
+  && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175 combat 17425 2649 1495" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
   && test -s tmp/offline-test/offline-main-after-challenge.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
