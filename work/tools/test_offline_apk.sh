@@ -322,7 +322,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4 bonus 3125 229 175" tmp/offline-test/logcat.txt \
   && grep -q "local equipment inventory query 2 1" tmp/offline-test/logcat.txt \
   && grep -q "local equipment inventory detail 2 1 3101 hp 3125" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored equipment 4 4" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored equipment 4 8" tmp/offline-test/logcat.txt \
   && grep -q "local item operations self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet star-up self-test PASS" tmp/offline-test/logcat.txt \
