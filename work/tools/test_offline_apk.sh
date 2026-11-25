@@ -345,7 +345,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "local inventory listener 2 TypeError" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
   && grep -Eq "local save restored hangup [1-9][0-9]* 0 PRESERVED" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored quick hangup 1" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored quick hangup 0 saved 1 dayReset 1" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175 combat 17425 2649 1495" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
