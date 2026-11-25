@@ -8,6 +8,7 @@ on:
       - "work/tools/patch_offline_h5.py"
       - "work/tools/patch_android.py"
       - "work/recovered/h5_snapshot.py"
+      - "work/recovered/derive_atlas_assets.py"
       - "work/tools/test_offline_apk.sh"
       - "com.ruirui.cjjlq.apk"
   workflow_dispatch:
@@ -60,6 +61,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p tmp/offline-build dist
+          python3 -m venv tmp/offline-build/asset-venv
+          tmp/offline-build/asset-venv/bin/pip install --disable-pip-version-check --quiet Pillow
           if GH_TOKEN="${{ github.token }}" gh release download h5-source-20261123 \
             --repo "${{ github.repository }}" \
             --pattern recovered-h5-client.zip \
@@ -96,6 +99,7 @@ jobs:
               echo "Restored cached H5 assets from APK artifact #92."
             fi
           fi
+          tmp/offline-build/asset-venv/bin/python work/recovered/derive_atlas_assets.py tmp/offline-build/game
           test -s tmp/offline-build/game/index.html
           test -s tmp/offline-build/game/code.js
           test -s tmp/offline-build/game/zip.txt

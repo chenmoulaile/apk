@@ -49,10 +49,14 @@ jobs:
       - name: Download H5 game client and resources
         shell: bash
         run: |
+          mkdir -p tmp/h5-snapshot
+          python3 -m venv tmp/h5-snapshot/asset-venv
+          tmp/h5-snapshot/asset-venv/bin/pip install --disable-pip-version-check --quiet Pillow
           python3 work/recovered/h5_snapshot.py \
             --output tmp/h5-snapshot/client \
             --max-total-mib 700 \
             --workers 16 | tee tmp/h5-snapshot/download-summary.json
+          tmp/h5-snapshot/asset-venv/bin/python work/recovered/derive_atlas_assets.py tmp/h5-snapshot/client
           cp tmp/h5-snapshot/snapshot-manifest.json work/recovered/snapshot-manifest.json
           cat > work/recovered/README.md <<'EOF'
           # Recovered H5 game client
