@@ -2366,7 +2366,7 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       log("local save restored hangup",Number(offlineTaskMeta.lastHangupTime)||0,
         Number(offlineTaskMeta.dailyCounters&&offlineTaskMeta.dailyCounters[52])||0,
         expectedHangupRestore>0?(hangupRestoredAfterDayReset?"PRESERVED":"NOT_PRESERVED"):"UNTESTED");
-      log("local save restored quick hangup",quickCombatUsed);
+      log("local save restored quick hangup",quickCombatUsed,"saved",Number(saved.quickCombatUsed)||0,"dayReset",offlineDayReset?1:0);
       if(expectedHangupRestore>0)delete offlineTaskMeta.expectedHangupRestoreTime;
       log("local save restored item operations",
         Number(restoredItems[3000002]&&restoredItems[3000002].count||0),
