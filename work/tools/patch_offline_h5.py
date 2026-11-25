@@ -1149,6 +1149,44 @@ HOOK = r"""
       });
     }catch(e){log("local inventory notify",e&&e.stack||e);}
   }
+  function makeOfflineMixturePetRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;
+    var ids=Array.isArray(req&&req.itemId)?req.itemId:[],
+      plans=[],totalConsumed=0;
+    if(!ids.length||ids.length>100){r.ret=1;return r;}
+    for(var i=0;i<ids.length;i++){
+      var id=Number(ids[i])||0,cfg=localItemConfig(id),
+        stack=u.itemPackInfo&&u.itemPackInfo.idMap&&u.itemPackInfo.idMap[id],
+        need=Math.max(1,Math.floor(Number(cfg&&cfg.composeNeedItemNum)||0)),
+        available=Math.max(0,Math.floor(Number(stack&&stack.count)||0)),
+        outputCount=Math.floor(available/need),
+        gain=Number(cfg&&cfg.composeGainId)||0,
+        composeType=Number(cfg&&cfg.composeType);
+      if(!cfg||!gain||!need||outputCount<=0){r.ret=1;log("local mixture rejected",id,available,need);return r;}
+      if(composeType===4||composeType===5){r.ret=1;log("local mixture requires interactive gift choice",id);return r;}
+      var rewardType=composeType===2?Number(rp.Action.ActionTye.ADD_PET):Number(rp.Action.ActionTye.ADD_ITEM);
+      var plan=[{type:rewardType,params:[gain,outputCount]}];
+      if(!localValidateRewardPlan(u,plan)){r.ret=1;log("local mixture invalid reward",id,gain,composeType);return r;}
+      plans.push({id:id,consume:outputCount*need,actions:plan});
+      totalConsumed+=outputCount*need;
+    }
+    // Validate all fragments first; only mutate after every output has passed validation.
+    plans.forEach(function(entry){
+      var item=u.itemPackInfo.idMap[entry.id];
+      item.count=Math.max(0,Number(item.count||0)-entry.consume);
+      if(item.count===0)delete u.itemPackInfo.idMap[entry.id];
+      entry.actions.forEach(applyLocalRewardAction);
+      log("local mixture composed",entry.id,entry.consume,entry.actions[0].params[0],entry.actions[0].params[1]);
+    });
+    localNotifyInventoryChanged(u,plans.some(function(entry){
+      return entry.actions.some(function(a){return Number(a.type)===Number(rp.Action.ActionTye.ADD_PET);});
+    }));
+    save();r.ret=0;
+    log("local mixture batch complete",plans.length,totalConsumed);
+    return r;
+  }
   function makeOfflineUseItemRsp(req,r){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
     if(!u||!u.baseInfo){r.ret=1;return r;}
@@ -1164,9 +1202,10 @@ HOOK = r"""
     var plan=[],units=0;
     if(kind===Number(rp.UseItemReq.UseType.USETYPE_SELL)){
       var sell=cfg.sellNode;
-      if(!sell||Number(sell.moneyType)<=0||Number(sell.moneyNum)<=0){r.ret=1;return r;}
+      var sellPointId=({1:3,2:2,3:1})[Number(sell&&sell.moneyType)];
+      if(!sellPointId||Number(sell.moneyNum)<=0){r.ret=1;return r;}
       plan=[{type:Number(rp.Action.ActionTye.ADD_POINT_ITEM),params:[
-        Number(sell.moneyType),Number(sell.moneyNum)*count]}];
+        sellPointId,Number(sell.moneyNum)*count]}];
       units=count;
     }else if(kind===Number(rp.UseItemReq.UseType.USETYPE_DECOMPOSE)){
       var decomposed=cfg.decomposeGain;
@@ -1804,6 +1843,9 @@ HOOK = r"""
       else if(Resp===rp.UseItemRsp){
         r=makeOfflineUseItemRsp(req,r);
       }
+      else if(Resp===rp.MixturePetRsp){
+        r=makeOfflineMixturePetRsp(req,r);
+      }
       else if(Resp===rp.EquipInfoListEquipRsp){
         r=localAutoWearEquipment(req,r);
       }
@@ -1907,6 +1949,19 @@ HOOK = r"""
     addDiamond:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.diamond=Number(m.diamond||0)+Number(n||0);save();},
     addCash:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.cash=Number(m.cash||0)+Number(n||0);save();},
     addItem:function(id,count){ensure();addLocalItem(id,count);save();},
+    selfTestItemUse:function(){
+      ensure();
+      var u=DM.G().userInfo,before=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0);
+      var req=new rp.UseItemReq();req.id=1001011;req.useType=Number(rp.UseItemReq.UseType.USETYPE_USE);req.count=1;
+      addLocalItem(1001011,1);
+      var rsp=makeOfflineUseItemRsp(req,new rp.UseItemRsp());
+      var after=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0);
+      var remaining=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001011]&&u.itemPackInfo.idMap[1001011].count||0);
+      var ok=Number(rsp.ret)===0&&after>before&&remaining===0;
+      log("local item use self-test",ok?"PASS":"FAIL","ret",rsp.ret,"petExp",before,"->",after,"remaining",remaining);
+      save();
+      return {ret:rsp.ret,before:before,after:after,remaining:remaining,pass:ok};
+    },
     useItem:function(id,useType,count,index,sid){
       ensure();
       var req=new rp.UseItemReq();req.id=Number(id)||0;req.useType=Number(useType)||0;
@@ -1949,13 +2004,13 @@ OVERLAY = """
 <div id="offline-menu-button">离线菜单</div>
 <div id="offline-task-button">任务</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
