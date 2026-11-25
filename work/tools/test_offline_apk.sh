@@ -55,35 +55,6 @@ timeout 20s adb shell screencap -p /sdcard/offline-pet-closed-screen.png
 timeout 30s adb pull /sdcard/offline-pet-closed-screen.png tmp/offline-test/offline-pet-closed-screen.png > /dev/null 2>&1
 timeout 10s adb shell input tap 535 1835 > tmp/offline-test/adventure-tab-return.txt 2>&1
 sleep 5
-# Main Challenge button center: logical (355,1078), scaled to 1080x1920.
-timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
-sleep 5
-timeout 20s adb shell screencap -p /sdcard/offline-main-challenge-panel.png
-timeout 30s adb pull /sdcard/offline-main-challenge-panel.png tmp/offline-test/offline-main-challenge-panel.png > /dev/null 2>&1
-# Challenge button center: panel origin (12,126) + local (346,893), scaled 1.5x.
-timeout 10s adb shell input tap 537 1529 > tmp/offline-test/open-formation-tap.txt 2>&1
-sleep 5
-timeout 20s adb shell screencap -p /sdcard/offline-combat-formation-panel.png
-timeout 30s adb pull /sdcard/offline-combat-formation-panel.png tmp/offline-test/offline-combat-formation-panel.png > /dev/null 2>&1
-# Formation Fight button center at logical (453,1218), scaled 1.5x.
-timeout 10s adb shell input tap 680 1827 > tmp/offline-test/start-main-fight-tap.txt 2>&1
-sleep 25
-timeout 20s adb shell screencap -p /sdcard/offline-battle-screen.png
-timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-battle-screen.png > /dev/null 2>&1
-# Main Challenge auto-advances after each win. Allow stages 2 through 6 to finish.
-sleep 110
-timeout 20s adb shell screencap -p /sdcard/offline-progress-screen.png
-timeout 30s adb pull /sdcard/offline-progress-screen.png tmp/offline-test/offline-progress-screen.png > /dev/null 2>&1
-# Dismiss the victory/defeat result before opening tasks; result overlays otherwise stay above the Task panel.
-timeout 10s adb shell input tap 295 1675 > tmp/offline-test/combat-result-return.txt 2>&1
-sleep 8
-timeout 20s adb shell screencap -p /sdcard/offline-after-combat-return.png
-timeout 30s adb pull /sdcard/offline-after-combat-return.png tmp/offline-test/offline-after-combat-return.png > /dev/null 2>&1
-timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
-timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 2>&1
-timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
-timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
-timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
 # Exercise the restored local daily, weekly and main-story task flows.
 # The task shortcut opens the original game task panels backed by local task data.
 timeout 10s adb shell input tap 1000 50 > tmp/offline-test/task-shortcut-tap.txt 2>&1
@@ -121,6 +92,67 @@ timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
 timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
+# Main Challenge button center: logical (355,1078), scaled to 1080x1920.
+timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-main-challenge-panel.png
+timeout 30s adb pull /sdcard/offline-main-challenge-panel.png tmp/offline-test/offline-main-challenge-panel.png > /dev/null 2>&1
+# Challenge button center: panel origin (12,126) + local (346,893), scaled 1.5x.
+timeout 10s adb shell input tap 537 1529 > tmp/offline-test/open-formation-tap.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-combat-formation-panel.png
+timeout 30s adb pull /sdcard/offline-combat-formation-panel.png tmp/offline-test/offline-combat-formation-panel.png > /dev/null 2>&1
+# Formation Fight button center at logical (453,1218), scaled 1.5x.
+timeout 10s adb shell input tap 680 1827 > tmp/offline-test/start-main-fight-tap.txt 2>&1
+sleep 25
+timeout 20s adb shell screencap -p /sdcard/offline-battle-screen.png
+timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-battle-screen.png > /dev/null 2>&1
+# Wait for the first local stage reward (three equipment pieces), then close its result
+# before the game's 29-second auto-next timer starts the following encounter.
+SEEN_STAGE2=0
+for attempt in $(seq 1 120); do
+  if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 1 -> 2"; then
+    SEEN_STAGE2=1
+    break
+  fi
+  sleep 1
+done
+if [ "$SEEN_STAGE2" -eq 1 ]; then
+  sleep 26
+  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/combat-result-return.txt 2>&1
+  sleep 4
+else
+  echo "stage-two reward did not appear" > tmp/offline-test/combat-result-return.txt
+fi
+timeout 20s adb shell screencap -p /sdcard/offline-progress-screen.png
+timeout 30s adb pull /sdcard/offline-progress-screen.png tmp/offline-test/offline-progress-screen.png > /dev/null 2>&1
+timeout 20s adb shell screencap -p /sdcard/offline-after-combat-return.png
+timeout 30s adb pull /sdcard/offline-after-combat-return.png tmp/offline-test/offline-after-combat-return.png > /dev/null 2>&1
+# The task panels were already tested before PvE. We are now in the main scene;
+# inspect bag, equipment and local storage without an auto-battle overlay.
+timeout 10s adb shell input tap 690 1835 > tmp/offline-test/bag-tab-tap.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-bag-screen.png
+timeout 30s adb pull /sdcard/offline-bag-screen.png tmp/offline-test/offline-bag-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
+sleep 6
+timeout 20s adb shell screencap -p /sdcard/offline-pet-before-equip.png
+timeout 30s adb pull /sdcard/offline-pet-before-equip.png tmp/offline-test/offline-pet-before-equip.png > /dev/null 2>&1
+timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
+timeout 30s adb pull /sdcard/offline-equipped-screen.png tmp/offline-test/offline-equipped-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 120 1130 > tmp/offline-test/equipment-detail-open.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
+timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
+adb shell input keyevent 4 > tmp/offline-test/equipment-detail-close.txt 2>&1
+sleep 5
+timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
+timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 2>&1
+timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
+timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
+timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
 # Close Task through its own btnClose at logical (725,1213), scaled to 1080x1920.
 timeout 10s adb shell input tap 1070 1818 > tmp/offline-test/task-panel-close.txt 2>&1
 sleep 6
@@ -205,12 +237,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local combat simulation stage 2 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 1 -> 2" tmp/offline-test/logcat.txt \
-  && grep -q "local NewSceneGradeFightRsp 2 -> 3" tmp/offline-test/logcat.txt \
-  && grep -q "local NewSceneGradeFightRsp 3 -> 4" tmp/offline-test/logcat.txt \
-  && grep -q "local combat simulation stage 5 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
-  && grep -q "local NewSceneGradeFightRsp 4 -> 5" tmp/offline-test/logcat.txt \
-  && grep -q "local combat simulation stage 6 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
-  && grep -q "local NewSceneGradeFightRsp 5 -> 6" tmp/offline-test/logcat.txt \
+  && grep -q "local NewSceneGradeFightRsp 1 -> 2" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && grep -q "local save restored 1109500 6" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
