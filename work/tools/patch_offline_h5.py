@@ -1339,6 +1339,8 @@ HOOK = r"""
              [5,6].indexOf(Number(cfg.quality||0))<0){
       return false;
     }
+    if(Number(rule.petId||0)>0&&Number(cfg.ancestor||cfg.id)!==Number(rule.petId))
+      return false;
     return true;
   }
   function localRemovePetForStarUp(u,genId){
@@ -1362,7 +1364,15 @@ HOOK = r"""
     if(!targetCfg)return {ok:false,reason:"target pet config missing"};
     var currentStar=Math.max(1,Number(target.starLevel)||1);
     var nextStar=currentStar+1;
-    if(nextStar>Number(targetCfg.maxStarLevel||99))return {ok:false,reason:"maximum star reached"};
+    var maxConfiguredStar=0;
+    try{
+      (GC.G().PetStarConf.getDesList()||[]).forEach(function(row){
+        if(Number(row.templateId)===Number(targetCfg.starTemplateId))
+          maxConfiguredStar=Math.max(maxConfiguredStar,Number(row.star)||0);
+      });
+    }catch(_){}
+    if(!maxConfiguredStar||nextStar>maxConfiguredStar)
+      return {ok:false,reason:"maximum configured star reached"};
     var starCfg=null;
     try{starCfg=GC.G().PetStarConf.getDes(Number(targetCfg.starTemplateId)*100+nextStar);}catch(_){}
     if(!starCfg||Number(starCfg.star)!==nextStar)
@@ -1370,10 +1380,36 @@ HOOK = r"""
     var rules=Array.isArray(starCfg.cost)?starCfg.cost:[];
     groups=Array.isArray(groups)?groups:[];
     if(groups.length!==rules.length)return {ok:false,reason:"star cost groups mismatch"};
-    var selected=[],seen={},allActions=[];
+    var selected=[],seen={},allActions=[],cardTotals={};
+    var startupCardIds={
+      5:[1001163,1001160,1001159,1001162,1001161],
+      6:[1001169,1001166,1001165,1001168,1001167],
+      9:[1001174,1001171,1001170,1001173,1001172],
+      10:[1001179,1001176,1001175,1001178,1001177],
+      11:[1001339,1001340,1001341,1001342,1001343],
+      12:[1001344,1001345,1001346,1001347,1001348],
+      13:[1001349,1001350,1001351,1001352,1001353],
+      14:[1001354,1001355,1001356,1001357,1001358],
+      15:[1001359,1001360,1001361,1001362,1001363]
+    };
     for(var g=0;g<rules.length;g++){
-      var rule=rules[g]||{},ids=Array.isArray(groups[g])?groups[g]:[];
-      if(ids.length!==Number(rule.num||0))return {ok:false,reason:"wrong fodder count"};
+      var rule=rules[g]||{},group=groups[g]||{},
+        ids=Array.isArray(group)?group:(Array.isArray(group.petGenIds)?group.petGenIds:[]),
+        cards=Array.isArray(group.costCards)?group.costCards:[];
+      var cardCount=0,allowedCards=startupCardIds[Number(rule.star)]||[];
+      if(Number(rule.samePet||0))allowedCards=[];
+      else if(Number(rule.sameElement||0)){
+        var elementIndex=Number(targetCfg.element)-1;
+        allowedCards=elementIndex>=0&&elementIndex<allowedCards.length?[allowedCards[elementIndex]]:[];
+      }
+      for(var c=0;c<cards.length;c++){
+        var card=cards[c]||{},cardId=Number(card.itemId)||0,count=Math.floor(Number(card.count)||0);
+        if(!cardId||count<=0||allowedCards.indexOf(cardId)<0)
+          return {ok:false,reason:"invalid star soul card for configured cost"};
+        cardCount+=count;cardTotals[cardId]=(cardTotals[cardId]||0)+count;
+      }
+      if(ids.length+cardCount!==Number(rule.num||0))
+        return {ok:false,reason:"wrong fodder pet/card count"};
       for(var k=0;k<ids.length;k++){
         var id=Number(ids[k])||0,key=String(id),record=localPetOwnedRecord(u,id);
         if(!id||id===Number(targetGenId)||seen[key]||!record)
@@ -1392,6 +1428,12 @@ HOOK = r"""
       if(allActions.some(function(x){return !x;}))
         return {ok:false,reason:"invalid star-up cost action"};
     }
+    Object.keys(cardTotals).forEach(function(id){
+      allActions.push(localNormalizeRewardAction({
+        type:Number(rp.Action.ActionTye.DEL_ITEM_BY_ID),
+        params:[Number(id),Number(cardTotals[id])]
+      }));
+    });
     var costPlan=localCrystalCostInfo(u,allActions);
     if(!costPlan.ok)return {ok:false,reason:"star-up materials insufficient"};
     try{
@@ -1417,7 +1459,7 @@ HOOK = r"""
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
     var targets=Array.isArray(req&&req.petGenIds)?req.petGenIds:[];
     if(!u||!u.baseInfo||targets.length!==1){r.ret=1;log("local PetStarLevelUp rejected: use one target per request");return r;}
-    var groups=(req&&req.costGroups||[]).map(function(g){return g&&g.costPetGenIds||[];});
+    var groups=(req&&req.costGroups||[]).map(function(g){return {petGenIds:g&&g.costPetGenIds||[],costCards:[]};});
     var result=localPetStarLevelUp(u,targets[0],groups);
     r.ret=result.ok?0:1;
     if(result.ok)r.petGenId=Number(targets[0]);
@@ -1429,9 +1471,8 @@ HOOK = r"""
     if(!u||!u.baseInfo){r.ret=1;return r;}
     var choices=Array.isArray(req&&req.choiceCost)?req.choiceCost:[],groups=[];
     for(var i=0;i<choices.length;i++){
-      var choice=choices[i]||{},cards=choice.costCards||[];
-      if(cards.length){r.ret=1;log("local OnePetStarLevelUp rejected: unsupported fodder cards");return r;}
-      groups.push(choice.petGenIds||[]);
+      var choice=choices[i]||{};
+      groups.push({petGenIds:choice.petGenIds||[],costCards:choice.costCards||[]});
     }
     var result=localPetStarLevelUp(u,req&&req.petGenIds,groups);
     r.ret=result.ok?0:1;
