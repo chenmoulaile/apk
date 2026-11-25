@@ -204,15 +204,15 @@ timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-menu-open.txt 2
 sleep 2
 timeout 20s adb shell screencap -p /sdcard/offline-tools-menu.png
 timeout 30s adb pull /sdcard/offline-tools-menu.png tmp/offline-test/offline-tools-menu.png > /dev/null 2>&1
-timeout 10s adb shell input tap 150 445 > tmp/offline-test/offline-item-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 517 > tmp/offline-test/offline-item-self-test.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 150 545 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 630 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 150 645 > tmp/offline-test/offline-star-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 743 > tmp/offline-test/offline-star-self-test.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 150 745 > tmp/offline-test/offline-star-card-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 856 > tmp/offline-test/offline-star-card-self-test.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 150 845 > tmp/offline-test/offline-evolution-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 969 > tmp/offline-test/offline-evolution-self-test.txt 2>&1
 sleep 5
 # Cold-restart again to prove item, crystal, star-up and evolution changes survive.
 adb shell am force-stop com.ruirui.cjjlq
