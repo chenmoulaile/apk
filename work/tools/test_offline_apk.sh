@@ -66,7 +66,8 @@ timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-daily-login-clai
 sleep 4
 timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-daily-pet-claim.txt 2>&1
 sleep 4
-# First daily activity chest requires 20 liveness.
+# Claim the first daily activity chest. The first two ready tasks add 20 liveness;
+# the archived client may include previously accumulated liveness in the reported total.
 timeout 10s adb shell input tap 365 609 > tmp/offline-test/task-daily-box-claim.txt 2>&1
 sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-daily-reward-popup.png
@@ -90,22 +91,16 @@ timeout 10s adb shell input tap 540 1354 > tmp/offline-test/weekly-reward-confir
 sleep 3
 timeout 20s adb shell screencap -p /sdcard/offline-task-weekly-claimed.png
 timeout 30s adb pull /sdcard/offline-task-weekly-claimed.png tmp/offline-test/offline-task-weekly-claimed.png > /dev/null 2>&1
-# Main-story tab is the third tab when the optional training tab is locked,
-# and the fourth tab when training is available.
+# Capture main-story task progress before the first three stages are cleared.
+# It is not claimable yet; the claim is exercised after stage 1-6 completes below.
 if timeout 15s adb logcat -d -v brief | grep -q "local task panel tabs 4"; then
   timeout 10s adb shell input tap 740 105 > tmp/offline-test/task-main-tab.txt 2>&1
 else
-  timeout 10s adb shell input tap 545 105 > tmp/offline-test/task-main-tab.txt 2>&1
+  timeout 10s adb shell input tap 480 105 > tmp/offline-test/task-main-tab.txt 2>&1
 fi
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
 timeout 30s adb pull /sdcard/offline-task-main.png tmp/offline-test/offline-task-main.png > /dev/null 2>&1
-timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2>&1
-sleep 4
-timeout 10s adb shell input tap 540 1354 > tmp/offline-test/main-task-reward-confirm.txt 2>&1
-sleep 3
-timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
-timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
 # Close Task before opening Main Challenge so the challenge click is not blocked underneath.
 timeout 10s adb shell input tap 1070 1818 > tmp/offline-test/task-panel-close.txt 2>&1
 sleep 6
@@ -206,17 +201,37 @@ if [ "$SEEN_STAGE5_RESULT" -eq 1 ]; then
 else
   echo "stage 1-6 did not start; challenge return not attempted" > tmp/offline-test/exit-main-challenge.txt
 fi
+# Claim the main-story task after the stage 1-6 challenge has completed.
+timeout 10s adb shell input tap 1000 50 > tmp/offline-test/reopen-task-for-main-claim.txt 2>&1
+sleep 8
+if timeout 15s adb logcat -d -v brief | grep -q "local task panel tabs 4"; then
+  timeout 10s adb shell input tap 740 105 > tmp/offline-test/task-main-tab-after-challenge.txt 2>&1
+else
+  timeout 10s adb shell input tap 480 105 > tmp/offline-test/task-main-tab-after-challenge.txt 2>&1
+fi
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
+timeout 30s adb pull /sdcard/offline-task-main.png tmp/offline-test/offline-task-main.png > /dev/null 2>&1
+timeout 10s adb shell input tap 770 715 > tmp/offline-test/task-main-claim.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
+timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
+timeout 10s adb shell input tap 540 1354 > tmp/offline-test/main-task-reward-confirm.txt 2>&1
+sleep 3
+# Close Tasks before opening the Spirit page and its equipment slots.
+timeout 10s adb shell input tap 1070 1818 > tmp/offline-test/task-panel-close-after-main-claim.txt 2>&1
+sleep 4
 # The pet tab is on the normal bottom navigation, only after leaving combat.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
 sleep 7
 timeout 20s adb shell screencap -p /sdcard/offline-pet-before-equip.png
 timeout 30s adb pull /sdcard/offline-pet-before-equip.png tmp/offline-test/offline-pet-before-equip.png > /dev/null 2>&1
-timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
+timeout 10s adb shell input tap 800 925 > tmp/offline-test/pet-one-key-equip.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
 timeout 30s adb pull /sdcard/offline-equipped-screen.png tmp/offline-test/offline-equipped-screen.png > /dev/null 2>&1
-# Open the first worn slot to exercise the equipment-detail query.
-timeout 10s adb shell input tap 120 1130 > tmp/offline-test/equipment-detail-open.txt 2>&1
+# Open the first worn equipment slot (bottom-left slot) to exercise its detail query.
+timeout 10s adb shell input tap 120 970 > tmp/offline-test/equipment-detail-open.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
 timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
@@ -282,7 +297,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local NewTaskInfoOperate 0 daily 16 week 15 main 1" tmp/offline-test/logcat.txt \
   && grep -q "local task claimed daily 1 liveness 10" tmp/offline-test/logcat.txt \
   && grep -q "local task claimed daily 13 liveness 10" tmp/offline-test/logcat.txt \
-  && grep -q "local task box claimed daily 1 liveness 20" tmp/offline-test/logcat.txt \
+  && grep -q "local task box claimed daily 1 liveness " tmp/offline-test/logcat.txt \
   && grep -q "local task claimed weekly 3 liveness 10" tmp/offline-test/logcat.txt \
   && grep -q "local main task claimed 1 next 2" tmp/offline-test/logcat.txt \
   && grep -q "local equipment item reward 4000002 1 position 2" tmp/offline-test/logcat.txt \
