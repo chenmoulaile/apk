@@ -2563,6 +2563,14 @@ def patch(root: Path) -> None:
     import shutil
     if not (root/"bg3.jpg").is_file() and (root/"atlas/loading/bg3.jpg").is_file():
         shutil.copy2(root/"atlas/loading/bg3.jpg",root/"bg3.jpg")
+    # The original currency icon is packed in common.atlas; the archived UI also
+    # requests it as a loose image, so package the exact frame from that atlas.
+    icon_source=Path(__file__).resolve().parents[1]/"assets"/"zuan01.png"
+    icon_target=root/"res"/"icons"/"zuan01.png"
+    if not icon_source.is_file():
+        raise SystemExit("recovered zuan01.png atlas frame is missing")
+    icon_target.parent.mkdir(parents=True,exist_ok=True)
+    shutil.copy2(icon_source,icon_target)
     text=code.read_text(encoding="utf-8",errors="replace")
     sentinel="new GameShell;"
     if text.count(sentinel)!=1:
