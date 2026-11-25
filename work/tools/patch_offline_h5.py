@@ -2097,6 +2097,11 @@ HOOK = r"""
       var restoredCrystalSlot=restoredCrystal&&restoredCrystal.slotInfo&&restoredCrystal.slotInfo[7];
       var restoredStarTestPet=(current.petStorageInfo.petArray||[]).find(function(x){return Number(x&&x.id)===1108;});
       log("local save restored star-up pet",Number(restoredStarTestPet&&restoredStarTestPet.starLevel)||0);
+      var restoredCardStarPet=(current.petPackInfo.packArray||[]).find(function(node){
+        return node&&node.pet&&Number(node.pet.genId)===100001;
+      });
+      log("local save restored card-star-up pet",
+        Number(restoredCardStarPet&&restoredCardStarPet.pet&&restoredCardStarPet.pet.starLevel)||0);
       var restoredItems=current.itemPackInfo&&current.itemPackInfo.idMap||{};
       log("local save restored pet crystal",Number(restoredCrystal&&restoredCrystal.type)||0,
         Number(restoredCrystal&&restoredCrystal.crystalLevel)||0,
@@ -2504,6 +2509,52 @@ HOOK = r"""
     addDiamond:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.diamond=Number(m.diamond||0)+Number(n||0);save();},
     addCash:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.cash=Number(m.cash||0)+Number(n||0);save();},
     addItem:function(id,count){ensure();addLocalItem(id,count);save();},
+    selfTestPetStarCard:function(){
+      ensure();
+      var u=DM.G().userInfo,target=u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet;
+      if(!target||Number(target.id)!==3101){
+        log("local pet star-card self-test FAIL expected base pet 3101");
+        return {pass:false};
+      }
+      if(Number(target.starLevel||0)>=6){
+        log("local pet star-card self-test SKIP already star",Number(target.starLevel));
+        return {pass:true,skipped:true};
+      }
+      if(Number(target.starLevel||0)!==5){
+        log("local pet star-card self-test FAIL expected star 5",Number(target.starLevel));
+        return {pass:false};
+      }
+      if(!localAddPetToStorage(u,3101,3,5)){
+        log("local pet star-card self-test FAIL could not seed fodder");
+        return {pass:false};
+      }
+      addLocalItem(1001159,1);
+      addLocalItem(1001001,1000);
+      var fodder=(u.petStorageInfo.petArray||[]).filter(function(pet){
+        return pet&&Number(pet.id)===3101&&Number(pet.starLevel)===5&&
+          String(pet.genId)!==String(target.genId);
+      }).slice(-3);
+      var beforeCard=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001159]&&u.itemPackInfo.idMap[1001159].count||0),
+        beforeMaterial=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001001]&&u.itemPackInfo.idMap[1001001].count||0);
+      var req=new rp.OnePetStarLevelUpReq();req.petGenIds=Number(target.genId);
+      req.choiceCost=[
+        {petGenIds:[],costCards:[{itemId:1001159,count:1}]},
+        {petGenIds:fodder.map(function(pet){return Number(pet.genId);}),costCards:[]}
+      ];
+      var rsp=makeOfflineOnePetStarLevelUpRsp(req,new rp.OnePetStarLevelUpRsp());
+      var afterCard=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001159]&&u.itemPackInfo.idMap[1001159].count||0),
+        afterMaterial=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001001]&&u.itemPackInfo.idMap[1001001].count||0),
+        remainingFodder=fodder.filter(function(pet){return !!localPetOwnedRecord(u,pet.genId);}).length;
+      var ok=Number(rsp.ret)===0&&Number(target.starLevel)===6&&beforeCard>=1&&afterCard===beforeCard-1&&
+        beforeMaterial>=1000&&afterMaterial===beforeMaterial-1000&&remainingFodder===0;
+      log("local pet star-card self-test",ok?"PASS":"FAIL","ret",rsp.ret,
+        "star",5,"->",Number(target.starLevel)||0,
+        "card",beforeCard,"->",afterCard,"material",beforeMaterial,"->",afterMaterial,
+        "fodderRemaining",remainingFodder);
+      save();
+      return {pass:ok,ret:rsp.ret,star:Number(target.starLevel)||0,
+        card:afterCard,material:afterMaterial,fodderRemaining:remainingFodder};
+    },
     selfTestPetStarUp:function(){
       ensure();
       var u=DM.G().userInfo,entry=null;
@@ -2641,13 +2692,13 @@ OVERLAY = """
 <div id="offline-menu-button">离线菜单</div>
 <div id="offline-task-button">任务</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
