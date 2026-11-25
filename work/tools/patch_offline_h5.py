@@ -898,7 +898,7 @@ HOOK = r"""
       "bonus",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);
     return r;
   }
-  function localAddPetToStorage(u,id,count,starLevel){
+  function localAddPetToStorage(u,id,count,starLevel,level){
     if(!u||!u.petStorageInfo)return false;
     id=Number(id)||0;count=Math.max(0,Math.floor(Number(count)||0));
     if(!id||!count)return false;
@@ -911,7 +911,7 @@ HOOK = r"""
     var next=Math.max(100002,Math.floor(Number(storage.sidGenerator)||100002));
     for(var i=0;i<count;i++){
       while(storage.petArray.some(function(p){return p&&Number(p.genId)===next;}))next++;
-      var pet=petFrom({id:id,genId:next,level:1,starLevel:Number(starLevel)||0});
+      var pet=petFrom({id:id,genId:next,level:Math.max(1,Number(level)||1),starLevel:Number(starLevel)||0});
       if(starLevel)pet.starLevel=Number(starLevel);
       storage.petArray.push(pet);next++;
     }
@@ -2739,7 +2739,7 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
     selfTestPetStarUp:function(){
       ensure();
       var u=DM.G().userInfo,stored=u.petStorageInfo.petArray||[],start=stored.length;
-      if(!localAddPetToStorage(u,1108,2,2)){
+      if(!localAddPetToStorage(u,1108,2,2,2)){
         log("local pet star-up self-test FAIL could not seed two pets");
         return {pass:false};
       }
@@ -2783,7 +2783,7 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         log("local pet star-card self-test FAIL expected star 5",Number(target.starLevel));
         return {pass:false};
       }
-      if(!localAddPetToStorage(u,3101,3,5)){
+      if(!localAddPetToStorage(u,3101,3,5,2)){
         log("local pet star-card self-test FAIL could not seed fodder");
         return {pass:false};
       }
