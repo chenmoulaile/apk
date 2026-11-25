@@ -79,6 +79,19 @@ CORE_FILES = [
     "res/icons/rhyd_01.png",
     "res/items/1/1001259.png",
     "res/items/1/1001011.png",
+    # Reward popups, equipment alerts, summons and town are loaded by dynamic group names.
+    "atlas/receive.atlas",
+    "atlas/receive/title.atlas",
+    "atlas/receive/bgAni1.atlas",
+    "atlas/equipmentAlert.atlas",
+    "atlas/ElfSummon.atlas",
+    "atlas/PerserateSpace/Ani3.atlas",
+    "atlas/Town.atlas",
+    # Daily/weekly task progress icons and the summon task reward image.
+    "res/icons/rhyd_02.png",
+    "res/icons/zhyd_01.png",
+    "res/icons/zhyd_02.png",
+    "res/items/1/1001034.png",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"

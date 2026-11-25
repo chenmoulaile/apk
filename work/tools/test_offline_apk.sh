@@ -112,8 +112,9 @@ timeout 10s adb shell input tap 680 1827 > tmp/offline-test/start-main-fight-tap
 sleep 25
 timeout 20s adb shell screencap -p /sdcard/offline-battle-screen.png
 timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-battle-screen.png > /dev/null 2>&1
-# Wait for the first local stage reward (three equipment pieces), then close its result
-# before the game's 29-second auto-next timer starts the following encounter.
+# Complete three real main-challenge fights so all three starter gear pieces drop.
+# Stage 2 follows the first fight. The client opens a result view and auto-continues
+# after about 30 seconds; close each result before that transition and observe the next response.
 SEEN_STAGE2=0
 for attempt in $(seq 1 120); do
   if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 1 -> 2"; then
@@ -124,43 +125,43 @@ for attempt in $(seq 1 120); do
 done
 if [ "$SEEN_STAGE2" -eq 1 ]; then
   sleep 26
-  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/combat-result-return.txt 2>&1
-  sleep 4
+  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/stage2-result-continue.txt 2>&1
 else
-  echo "stage-two reward did not appear" > tmp/offline-test/combat-result-return.txt
+  echo "stage-two reward did not appear" > tmp/offline-test/stage2-result-continue.txt
 fi
-timeout 20s adb shell screencap -p /sdcard/offline-progress-screen.png
-timeout 30s adb pull /sdcard/offline-progress-screen.png tmp/offline-test/offline-progress-screen.png > /dev/null 2>&1
-timeout 20s adb shell screencap -p /sdcard/offline-after-combat-return.png
-timeout 30s adb pull /sdcard/offline-after-combat-return.png tmp/offline-test/offline-after-combat-return.png > /dev/null 2>&1
-# The task panels were already tested before PvE. We are now in the main scene;
-# inspect bag, equipment and local storage without an auto-battle overlay.
-timeout 10s adb shell input tap 690 1835 > tmp/offline-test/bag-tab-tap.txt 2>&1
-sleep 8
-timeout 20s adb shell screencap -p /sdcard/offline-bag-screen.png
-timeout 30s adb pull /sdcard/offline-bag-screen.png tmp/offline-test/offline-bag-screen.png > /dev/null 2>&1
+SEEN_STAGE3=0
+for attempt in $(seq 1 45); do
+  if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 2 -> 3"; then
+    SEEN_STAGE3=1
+    break
+  fi
+  sleep 1
+done
+if [ "$SEEN_STAGE3" -eq 1 ]; then
+  sleep 26
+  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/stage3-result-continue.txt 2>&1
+else
+  echo "stage-three reward did not appear" > tmp/offline-test/stage3-result-continue.txt
+fi
+SEEN_STAGE4=0
+for attempt in $(seq 1 45); do
+  if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 3 -> 4"; then
+    SEEN_STAGE4=1
+    break
+  fi
+  sleep 1
+done
+if [ "$SEEN_STAGE4" -eq 1 ]; then
+  timeout 20s adb shell screencap -p /sdcard/offline-progress-screen.png
+  timeout 30s adb pull /sdcard/offline-progress-screen.png tmp/offline-test/offline-progress-screen.png > /dev/null 2>&1
+else
+  echo "stage-four reward did not appear" > tmp/offline-test/stage4-result.txt
+fi
+# Leave the challenge flow and inspect the Spirit page while the next auto-advance is pending.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
-sleep 6
+sleep 7
 timeout 20s adb shell screencap -p /sdcard/offline-pet-before-equip.png
 timeout 30s adb pull /sdcard/offline-pet-before-equip.png tmp/offline-test/offline-pet-before-equip.png > /dev/null 2>&1
-timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
-sleep 8
-timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
-timeout 30s adb pull /sdcard/offline-equipped-screen.png tmp/offline-test/offline-equipped-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 120 1130 > tmp/offline-test/equipment-detail-open.txt 2>&1
-sleep 8
-timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
-timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
-adb shell input keyevent 4 > tmp/offline-test/equipment-detail-close.txt 2>&1
-sleep 5
-timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
-timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 2>&1
-timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
-timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
-timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
-# Use the game's real one-key-wear button on the Spirit page.
-timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
-sleep 6
 timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
@@ -172,6 +173,11 @@ timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
 timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
 adb shell input keyevent 4 > tmp/offline-test/equipment-detail-close.txt 2>&1
 sleep 5
+timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
+timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 2>&1
+timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
+timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
+timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
 # Preserve first-session evidence, then cold-restart while networking remains disabled.
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/first-run-logcat.txt
 adb shell am force-stop com.ruirui.cjjlq
@@ -233,11 +239,19 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local EnterSceneRsp + labelled bots" tmp/offline-test/logcat.txt \
   && grep -q "local combat simulation stage 2 rounds .*enemies 0/4 result 1" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 1 -> 2" tmp/offline-test/logcat.txt \
+  && grep -q "local NewSceneGradeFightRsp 2 -> 3" tmp/offline-test/logcat.txt \
+  && grep -q "local NewSceneGradeFightRsp 3 -> 4" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment item reward 4000004 1 position 4" tmp/offline-test/logcat.txt \
   && grep -q "local NewSceneGradeFightRsp 1 -> 2" tmp/offline-test/logcat.txt \
   && grep -q "local gold reward" tmp/offline-test/logcat.txt \
   && grep -q "local save restored 1109500 6" tmp/offline-test/logcat.txt \
   && [ -z "$FATAL_JS" ] \
   && ! grep -q "Failed to load: atlas/NewBag.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/receive" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/equipmentAlert.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/ElfSummon.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/Town.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/PerserateSpace/Ani3.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ZPower.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/upgradeLight.atlas" tmp/offline-test/logcat.txt \
   && grep -q "local optional atlas group skipped ZPower" tmp/offline-test/logcat.txt \
@@ -274,7 +288,6 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-task-weekly.png \
   && test -s tmp/offline-test/offline-task-main.png \
   && test -s tmp/offline-test/offline-task-main-claimed.png \
-  && test -s tmp/offline-test/offline-bag-screen.png \
   && test -s tmp/offline-test/offline-equipped-screen.png \
   && test -s tmp/offline-test/offline-equipment-detail-screen.png \
   && test -s tmp/offline-test/offline-after-combat-return.png \
