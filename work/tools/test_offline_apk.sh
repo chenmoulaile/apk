@@ -139,9 +139,9 @@ for attempt in $(seq 1 120); do
 done
 if [ "$SEEN_STAGE2" -eq 1 ]; then
   sleep 26
-  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/stage2-result-continue.txt 2>&1
+  timeout 10s adb shell input tap 800 1675 > tmp/offline-test/stage2-next-stage.txt 2>&1
 else
-  echo "stage-two reward did not appear" > tmp/offline-test/stage2-result-continue.txt
+  echo "stage-two reward did not appear" > tmp/offline-test/stage2-next-stage.txt
 fi
 SEEN_STAGE3=0
 for attempt in $(seq 1 45); do
@@ -153,9 +153,9 @@ for attempt in $(seq 1 45); do
 done
 if [ "$SEEN_STAGE3" -eq 1 ]; then
   sleep 26
-  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/stage3-result-continue.txt 2>&1
+  timeout 10s adb shell input tap 800 1675 > tmp/offline-test/stage3-next-stage.txt 2>&1
 else
-  echo "stage-three reward did not appear" > tmp/offline-test/stage3-result-continue.txt
+  echo "stage-three reward did not appear" > tmp/offline-test/stage3-next-stage.txt
 fi
 SEEN_STAGE4=0
 for attempt in $(seq 1 45); do
