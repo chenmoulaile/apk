@@ -259,7 +259,7 @@ jobs:
           - Build/test run: [#{run_number}]({run_url})
           - File: `super-spirit-ball-offline.apk`
           - SHA-256: `{apk_sha256}`
-          - Validation: `OFFLINE_SCENE_TEST=PASS`.
+          - Validation: pending offline Android emulator regression.
 
           This APK uses a local test signing key and is not signed with the original publisher key.
           Uninstall the original app before installing this build; uninstalling may remove its app data.
@@ -268,7 +268,7 @@ jobs:
           )
           PY
           grep -Fq "$APK_SHA256" dist/README.md
-          grep -Fq 'OFFLINE_SCENE_TEST=PASS' dist/README.md
+          grep -Fq 'pending offline Android emulator regression' dist/README.md
           ls -lh dist/super-spirit-ball-offline.apk
 
       - name: Install and launch with network disabled
@@ -288,6 +288,21 @@ jobs:
           disable-animations: true
           script: |
             timeout --signal=TERM --kill-after=30s 25m bash work/tools/test_offline_apk.sh
+
+      - name: Mark offline regression as passed
+        if: success()
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("dist/README.md")
+          text = path.read_text(encoding="utf-8")
+          pending = "- Validation: pending offline Android emulator regression."
+          passed = "- Validation: `OFFLINE_SCENE_TEST=PASS`."
+          if pending not in text:
+              raise SystemExit("pending validation marker missing")
+          path.write_text(text.replace(pending, passed, 1), encoding="utf-8")
+          PY
+          grep -Fq 'OFFLINE_SCENE_TEST=PASS' dist/README.md
 
       - name: Upload offline APK and runtime evidence
         if: always()
