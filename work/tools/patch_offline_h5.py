@@ -885,6 +885,28 @@ HOOK = r"""
       "bonus",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);
     return r;
   }
+  function localAddPetToStorage(u,id,count,starLevel){
+    if(!u||!u.petStorageInfo)return false;
+    id=Number(id)||0;count=Math.max(0,Math.floor(Number(count)||0));
+    if(!id||!count)return false;
+    var cfg=null;
+    try{cfg=GC.G().spiritConfig.getDes(id);}catch(_){}
+    if(!cfg)return false;
+    var storage=u.petStorageInfo;
+    if(!Array.isArray(storage.petArray))storage.petArray=[];
+    if(storage.petArray.length+count>100)return false;
+    var next=Math.max(100002,Math.floor(Number(storage.sidGenerator)||100002));
+    for(var i=0;i<count;i++){
+      while(storage.petArray.some(function(p){return p&&Number(p.genId)===next;}))next++;
+      var pet=petFrom({id:id,genId:next,level:1,starLevel:Number(starLevel)||0});
+      if(starLevel)pet.starLevel=Number(starLevel);
+      storage.petArray.push(pet);next++;
+    }
+    storage.sidGenerator=long(next);
+    log("local pet added to storage",id,count,Number(starLevel)||0,
+      "total",storage.petArray.length);
+    return true;
+  }
   function applyLocalRewardAction(a){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
     if(!u||!u.baseInfo||!a)return;
@@ -909,9 +931,287 @@ HOOK = r"""
       log("local cash reward",amount,cash.cash);
     }else if(type===Number(rp.Action.ActionTye.ADD_ITEM)){
       addLocalItem(p[0],p[1]);
+    }else if(type===Number(rp.Action.ActionTye.ADD_PET)){
+      localAddPetToStorage(u,p[0],p[1],0);
     }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)||type===Number(rp.Action.ActionTye.ADD_LEVEL_EXP)){
       addLocalPointItem(p[0],p[1]);
+    }else if(type===Number(rp.Action.ActionTye.UNLOCK_AVATAR)){
+      var avatarId=Number(p[0])||0;
+      if(avatarId>0){
+        var bits=u.baseInfo.avatarBits;
+        if(!Array.isArray(bits))bits=u.baseInfo.avatarBits=[];
+        var bitIndex=Math.floor((avatarId-1)/32),bit=1<<((avatarId-1)%32);
+        while(bits.length<=bitIndex)bits.push(0);
+        bits[bitIndex]=(Number(bits[bitIndex])||0)|bit;
+        log("local avatar unlocked",avatarId);
+      }
+    }else if(type>=100001&&type<=100015){
+      localAddPetToStorage(u,p[0],p[1],type-100000);
     }
+  }
+  function localNormalizeRewardAction(raw){
+    if(!raw)return null;
+    var params=Array.isArray(raw.params)?raw.params:
+      [raw.para1,raw.para2];
+    return {type:Number(raw.type)||0,params:params};
+  }
+  function localUseSeed(id,serial){
+    var userId=0;
+    try{userId=Number(current&&current.baseInfo&&current.baseInfo.userId)||730001;}catch(_){}
+    var a=(userId^Math.imul(Number(id)||0,2654435761)^Math.imul(Number(serial)||0,1013904223))>>>0;
+    return (Math.imul(a,1664525)+1013904223)>>>0;
+  }
+  function localWeightedReward(rows,field,seed){
+    var total=0;
+    (rows||[]).forEach(function(row){total+=Math.max(0,Math.floor(Number(row&&row[field])||0));});
+    if(total<=0)return null;
+    var target=(Number(seed)>>>0)%total;
+    for(var i=0;i<rows.length;i++){
+      target-=Math.max(0,Math.floor(Number(rows[i]&&rows[i][field])||0));
+      if(target<0)return rows[i];
+    }
+    return null;
+  }
+  function localGiftRewardActions(giftId,index,seed){
+    var gift=null;
+    try{gift=GC.G().GIFT_CONF.getDes(Number(giftId));}catch(_){}
+    if(!gift||!Array.isArray(gift.awardNode)||!gift.awardNode.length)return null;
+    var rows=gift.awardNode.slice(),picked=[];
+    var kind=Number(gift.type);
+    if(kind===3){
+      picked=rows;
+    }else if(kind===4){
+      var selected=Number(index)||0;
+      if(selected<1||selected>rows.length)return null;
+      picked=[rows[selected-1]];
+    }else if(kind===1){
+      for(var i=0;i<rows.length;i++){
+        var chance=Math.max(0,Math.min(10000,Number(rows[i].probValue)||0));
+        if((localUseSeed(giftId,seed+i)%10000)<chance)picked.push(rows[i]);
+      }
+    }else if(kind===2||kind===5){
+      var weighted=localWeightedReward(rows,"probValue",localUseSeed(giftId,seed));
+      if(!weighted)return null;
+      picked=[weighted];
+    }else return null;
+    return picked.map(localNormalizeRewardAction);
+  }
+  function localNewGiftRewardActions(giftId,index,seed,select){
+    var rows=[];
+    try{rows=GC.G().NEW_GIFT_CONF.getDesList().filter(function(x){return Number(x.giftId)===Number(giftId);});}catch(_){}
+    if(!rows.length)return null;
+    var row=null;
+    if(select){
+      var selected=Number(index)||0;
+      if(selected<1||selected>rows.length)return null;
+      row=rows[selected-1];
+    }else row=localWeightedReward(rows,"percent",localUseSeed(giftId,seed));
+    if(!row||!Array.isArray(row.actionArr))return null;
+    return row.actionArr.map(localNormalizeRewardAction);
+  }
+  function localHangupItemReward(type,hours,u){
+    hours=Math.max(0,Math.floor(Number(hours)||0));
+    if(!hours)return null;
+    var level=Math.max(1,Number(u&&u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||1);
+    var rows=[];
+    try{rows=GC.G().HANGUP_CONF.getDesList();}catch(_){}
+    var cfg=rows.find(function(x){
+      return (Number(x.fromLevel)||0)<=level&&Number(x.toLevel)>=level;
+    });
+    if(!cfg)return null;
+    if(Number(type)===Number(rp.Action.ActionTye.HANGUP_HOUR_GOLD))
+      return {type:Number(rp.Action.ActionTye.ADD_GOLD),params:[Number(cfg.gold||0)*hours]};
+    if(Number(type)===Number(rp.Action.ActionTye.HANGUP_HOUR_PET_EXP))
+      return {type:Number(rp.Action.ActionTye.ADD_PET_EXP),params:[Number(cfg.petExp||0)*hours]};
+    return null;
+  }
+  function localExpandUseActions(cfg,req,u,serial){
+    var source=cfg&&cfg.actions;
+    if(!Array.isArray(source)||!source.length)return null;
+    var output=[],count=Math.max(1,Math.floor(Number(req&&req.count)||1));
+    for(var unit=0;unit<count;unit++){
+      for(var i=0;i<source.length;i++){
+        var action=localNormalizeRewardAction(source[i]);
+        if(!action)return null;
+        var type=Number(action.type),params=action.params||[];
+        if(type===Number(rp.Action.ActionTye.OPEN_GIFT_BOX)){
+          var giftCount=Math.max(1,Math.floor(Number(params[1])||1));
+          for(var g=0;g<giftCount;g++){
+            var giftActions=localGiftRewardActions(params[0],req&&req.index,
+              serial*97+unit*giftCount+g);
+            if(!giftActions)return null;
+            output=output.concat(giftActions);
+          }
+        }else if(type===Number(rp.Action.ActionTye.OPEN_NEW_GIFT_BOX)){
+          var newGiftCount=Math.max(1,Math.floor(Number(params[1])||1));
+          for(var ng=0;ng<newGiftCount;ng++){
+            var newGiftActions=localNewGiftRewardActions(params[0],0,
+              serial*131+unit*newGiftCount+ng,false);
+            if(!newGiftActions)return null;
+            output=output.concat(newGiftActions);
+          }
+        }else if(type===Number(rp.Action.ActionTye.HANGUP_HOUR_GOLD)||
+                 type===Number(rp.Action.ActionTye.HANGUP_HOUR_PET_EXP)){
+          var hangup=localHangupItemReward(type,params[0],u);
+          if(!hangup)return null;
+          output.push(hangup);
+        }else output.push(action);
+      }
+    }
+    return output;
+  }
+  function localValidateRewardPlan(u,actions){
+    var petCount=0;
+    for(var i=0;i<actions.length;i++){
+      var a=actions[i],p=a&&a.params||[],type=Number(a&&a.type),id=Number(p[0])||0,n=Number(p[1])||0;
+      if(type===Number(rp.Action.ActionTye.ADD_ITEM)){
+        if(!id||n<=0||!localItemConfig(id))return false;
+      }else if(type===Number(rp.Action.ActionTye.ADD_PET)){
+        if(!id||n<=0)return false;
+        try{if(!GC.G().spiritConfig.getDes(id))return false;}catch(_){return false;}
+        petCount+=Math.floor(n);
+      }else if(type>=100001&&type<=100015){
+        if(!id||n<=0)return false;
+        try{if(!GC.G().spiritConfig.getDes(id))return false;}catch(_){return false;}
+        petCount+=Math.floor(n);
+      }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)){
+        if(!id||n<=0)return false;
+      }else if(type===Number(rp.Action.ActionTye.ADD_GOLD)||
+               type===Number(rp.Action.ActionTye.ADD_EXP)||
+               type===Number(rp.Action.ActionTye.ADD_DIAMOND)||
+               type===Number(rp.Action.ActionTye.ADD_PET_EXP)||
+               type===Number(rp.Action.ActionTye.ADD_CASH)||
+               type===Number(rp.Action.ActionTye.ADD_LEVEL_EXP)){
+        if(Number(p[0])<0)return false;
+      }else if(type===Number(rp.Action.ActionTye.UNLOCK_AVATAR)){
+        if(id<=0)return false;
+      }else return false;
+    }
+    var storage=u&&u.petStorageInfo&&u.petStorageInfo.petArray||[];
+    return storage.length+petCount<=100;
+  }
+  function localFindInventoryEntry(u,id,sid,count){
+    if(!u||!u.itemPackInfo)return null;
+    var pack=u.itemPackInfo,owners=localEquipmentOwners(u);
+    sid=Number(sid)||0;
+    if(sid){
+      var selected=localItemBySid(u,sid);
+      if(!selected||Number(selected.id)!==Number(id)||owners[String(selected.sid)])return null;
+      return {kind:"sid",item:selected};
+    }
+    if(localEquipmentPosition(id)){
+      var keys=Object.keys(pack.sidMap||{});
+      for(var i=0;i<keys.length;i++){
+        var item=pack.sidMap[keys[i]];
+        if(item&&Number(item.id)===Number(id)&&!owners[String(item.sid)])return {kind:"sid",item:item};
+      }
+      return null;
+    }
+    var stack=pack.idMap&&pack.idMap[id];
+    if(!stack||Number(stack.count||0)<count)return null;
+    return {kind:"stack",item:stack};
+  }
+  function localConsumeInventoryEntry(u,entry,count){
+    if(!u||!entry||!entry.item)return false;
+    if(entry.kind==="sid"){
+      if(count!==1)return false;
+      var key=String(entry.item.sid);
+      if(localEquipmentOwners(u)[key])return false;
+      delete u.itemPackInfo.sidMap[key];
+    }else{
+      var item=entry.item;
+      if(Number(item.count||0)<count)return false;
+      item.count=Math.max(0,Number(item.count||0)-count);
+      if(item.count===0)delete u.itemPackInfo.idMap[Number(item.id)];
+    }
+    refreshLocalItemIndexes(u);
+    return true;
+  }
+  function localNotifyInventoryChanged(u,petChanged){
+    try{
+      var dm=typeof DM!=="undefined"&&DM.G&&DM.G();
+      if(!dm)return;
+      dm.userInfo=u;
+      refreshLocalItemIndexes(u);
+      try{
+        var baseNotify=new rp.EntireNotify();
+        baseNotify.userBaseInfo=u.baseInfo;
+        dm.onUserInfoChange(baseNotify);
+      }catch(e){log("local base info notify",e);}
+      var changes=[2];
+      if(petChanged)changes.push(5);
+      changes.forEach(function(type){
+        dm.dataChangedFlag[type]=true;
+        var handlers=dm.listeners&&dm.listeners[type]||[];
+        handlers.slice().forEach(function(handler){
+          try{if(handler&&handler.runWith)handler.runWith(null);else if(typeof handler==="function")handler();}catch(e){log("local inventory listener",type,e);}
+        });
+      });
+    }catch(e){log("local inventory notify",e&&e.stack||e);}
+  }
+  function makeOfflineUseItemRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;normalizeLocalEquipmentInventory(u);
+    var id=Number(req&&req.id)||0,kind=Number(req&&req.useType),
+      count=Math.floor(Number(req&&req.count)||1),sid=Number(req&&req.sid)||0;
+    if(!id||count<1||count>999||[1,2,3,4].indexOf(kind)<0){r.ret=1;return r;}
+    var cfg=localItemConfig(id);
+    if(!cfg){r.ret=1;log("local item operation rejected: config missing",id,kind);return r;}
+    var entry=localFindInventoryEntry(u,id,sid,count);
+    if(!entry){r.ret=1;log("local item operation rejected: insufficient or equipped",id,sid,count,kind);return r;}
+    if(entry.kind==="sid"&&count!==1){r.ret=1;return r;}
+    var plan=[],units=0;
+    if(kind===Number(rp.UseItemReq.UseType.USETYPE_SELL)){
+      var sell=cfg.sellNode;
+      if(!sell||Number(sell.moneyType)<=0||Number(sell.moneyNum)<=0){r.ret=1;return r;}
+      plan=[{type:Number(rp.Action.ActionTye.ADD_POINT_ITEM),params:[
+        Number(sell.moneyType),Number(sell.moneyNum)*count]}];
+      units=count;
+    }else if(kind===Number(rp.UseItemReq.UseType.USETYPE_DECOMPOSE)){
+      var decomposed=cfg.decomposeGain;
+      if(!decomposed||Number(decomposed.itemId)<=0||Number(decomposed.itemNum)<=0){r.ret=1;return r;}
+      plan=[{type:Number(rp.Action.ActionTye.ADD_ITEM),params:[
+        Number(decomposed.itemId),Number(decomposed.itemNum)*count]}];
+      units=count;
+    }else if(kind===Number(rp.UseItemReq.UseType.USETYPE_COMPOSE)){
+      var need=Math.max(1,Math.floor(Number(cfg.composeNeedItemNum)||0));
+      var outputCount=Math.floor(count/need),composeType=Number(cfg.composeType),gain=Number(cfg.composeGainId)||0;
+      if(!cfg.composeNeedItemNum||outputCount<1||outputCount*need!==count||!gain){r.ret=1;return r;}
+      if(composeType===1||composeType===3){
+        plan=[{type:Number(rp.Action.ActionTye.ADD_ITEM),params:[gain,outputCount]}];
+      }else if(composeType===2){
+        plan=[{type:Number(rp.Action.ActionTye.ADD_PET),params:[gain,outputCount]}];
+      }else if(composeType===4||composeType===5){
+        var giftActions=localNewGiftRewardActions(gain,req&&req.index,
+          Number(offlineTaskMeta.itemUseCounter)||0,true);
+        if(!giftActions){r.ret=1;log("local compose gift rejected: choose a valid reward",id,gain,req&&req.index);return r;}
+        for(var out=0;out<outputCount;out++)plan=plan.concat(giftActions);
+      }else{r.ret=1;return r;}
+      units=outputCount;
+    }else if(kind===Number(rp.UseItemReq.UseType.USETYPE_USE)){
+      plan=localExpandUseActions(cfg,req,u,Number(offlineTaskMeta.itemUseCounter)||0);
+      if(!plan){r.ret=1;log("local item use rejected: unsupported action",id);return r;}
+      units=count;
+    }
+    if(!localValidateRewardPlan(u,plan)){
+      r.ret=1;log("local item operation rejected: reward cannot be represented locally",id,kind);
+      return r;
+    }
+    if(!localConsumeInventoryEntry(u,entry,count)){
+      r.ret=1;log("local item operation rejected during consume",id,count);
+      return r;
+    }
+    plan.forEach(function(action){applyLocalRewardAction(action);});
+    offlineTaskMeta.itemUseCounter=(Number(offlineTaskMeta.itemUseCounter)||0)+Math.max(1,units);
+    localNotifyInventoryChanged(u,plan.some(function(a){
+      return Number(a.type)===Number(rp.Action.ActionTye.ADD_PET)||
+        (Number(a.type)>=100001&&Number(a.type)<=100015);
+    }));
+    save();
+    r.ret=0;
+    log("local item operation",id,kind,"count",count,"rewards",plan.length);
+    return r;
   }
   function localPetLevelCostAvailable(u,cfg){
     var actions=cfg&&cfg.actionArr||[],money=u.baseInfo.moneyInfo||new rp.MoneyInfo(),points=u.baseInfo.newPointItemMap||{};
@@ -1501,6 +1801,9 @@ HOOK = r"""
       else if(Resp===rp.GetPetStorageRsp){
         r=makeOfflinePetStorageRsp(r);
       }
+      else if(Resp===rp.UseItemRsp){
+        r=makeOfflineUseItemRsp(req,r);
+      }
       else if(Resp===rp.EquipInfoListEquipRsp){
         r=localAutoWearEquipment(req,r);
       }
@@ -1603,6 +1906,14 @@ HOOK = r"""
     addGold:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.gold=long(Number(m.gold||0)+Number(n||0));save();},
     addDiamond:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.diamond=Number(m.diamond||0)+Number(n||0);save();},
     addCash:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.cash=Number(m.cash||0)+Number(n||0);save();},
+    addItem:function(id,count){ensure();addLocalItem(id,count);save();},
+    useItem:function(id,useType,count,index,sid){
+      ensure();
+      var req=new rp.UseItemReq();req.id=Number(id)||0;req.useType=Number(useType)||0;
+      req.count=Math.max(1,Math.floor(Number(count)||1));req.index=Number(index)||0;
+      if(sid!=null)req.sid=localLongValue(sid);
+      return Promise.resolve(makeOfflineUseItemRsp(req,new rp.UseItemRsp()));
+    },
     saveAndNotify:function(){ensure();try{var e=new rp.EntireNotify();e.userBaseInfo=DM.G().userInfo.baseInfo;DM.G().onUserInfoChange(e);}catch(x){}save();},
     reset:function(){localStorage.removeItem(KEY);location.reload();},
     bots:bots().map(function(x){return {name:x.name,level:x.level,offline:true};}),
