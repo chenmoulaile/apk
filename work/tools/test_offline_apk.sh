@@ -328,7 +328,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local pet star-up self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet star-card self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet evolution self-test PASS" tmp/offline-test/logcat.txt \
-  && grep -q "local hangup self-test PASS query 0 claim 0 duplicate 1" tmp/offline-test/logcat.txt \
+  && grep -q "local hangup self-test PASS query 0 claim 0 duplicate 1 under60 PASS" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
   && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
@@ -341,7 +341,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "local NewSceneGradeFightRsp 6 -> 7" tmp/offline-test/logcat.txt \
   && ! grep -q "local inventory listener 2 TypeError" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
-  && grep -Eq "local save restored hangup [1-9][0-9]* 1" tmp/offline-test/logcat.txt \
+  && grep -Eq "local save restored hangup [1-9][0-9]* 0 PRESERVED" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175 combat 17425 2649 1495" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
