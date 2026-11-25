@@ -2,7 +2,7 @@
 
 <badge>断网模拟器验收通过</badge>
 
-核心单机流程已经通过 Android 30（x86_64）模拟器的断网端到端回归。最新通过记录为 [GitHub Actions #157](https://github.com/chenmoulaile/apk/actions/runs/45592847471)，日志包含 `OFFLINE_SCENE_TEST=PASS`。
+核心单机流程已经通过 Android 30（x86_64）模拟器的断网端到端回归。最新通过记录为 [GitHub Actions #162](https://github.com/chenmoulaile/apk/actions/runs/45595325360)，日志包含 `OFFLINE_SCENE_TEST=PASS`。
 
 ## 已通过的功能
 
@@ -15,13 +15,13 @@
 - 精灵基础成长、精灵仓库和 18 个编队槽位正常。
 - 断网强制结束进程并重新启动后，本地存档能够恢复：金币 1,109,500、第 6 关进度、2 级精灵、普通点数 19,000、活动点数 4,000，以及背包、装备和水晶状态。
 
-测试截图、日志、摘要和 APK 位于 [Actions #157 → Artifacts → offline-apk-test-157](https://github.com/chenmoulaile/apk/actions/runs/45592847471)。
+测试截图、日志、摘要和 APK 位于 [Actions #162 → Artifacts → offline-apk-test-162](https://github.com/chenmoulaile/apk/actions/runs/45595325360)。
 
 ## 下载 APK
 
-从 [Actions #157 的 Artifacts](https://github.com/chenmoulaile/apk/actions/runs/45592847471) 下载 `offline-apk-test-157`，其中包含 `dist/super-spirit-ball-offline.apk`、SHA-256 校验文件和构建说明。
+从 [Actions #162 的 Artifacts](https://github.com/chenmoulaile/apk/actions/runs/45595325360) 下载 `offline-apk-test-162`，其中包含 `dist/super-spirit-ball-offline.apk`、SHA-256 校验文件和构建说明。
 
-- SHA-256：`1dd6c6d59a4f54695291372be974b7a287b9b86eb83c9758444422027e362150`
+- SHA-256：`6cdcb7becfc359c9a0ac02675edca15c732d2f17fb60df8f8a5aa461e2d4f029`
 - 通过环境：Android 30、x86_64 模拟器，断网模式。
 - APK 使用本地测试签名，与原版发布者签名不同。
 - 从原版切换到此 APK 通常需要先卸载原版；卸载可能清除原版应用数据。

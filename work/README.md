@@ -15,8 +15,8 @@
 
 ## 当前通过范围
 
-主分支第 157 次断网 Android 模拟器回归已经通过：
-[Actions #157](https://github.com/chenmoulaile/apk/actions/runs/45592847471)
+主分支第 162 次断网 Android 模拟器回归已经通过：
+[Actions #162](https://github.com/chenmoulaile/apk/actions/runs/45595325360)
 
 日志末尾包含 `OFFLINE_SCENE_TEST=PASS`。该次测试确认：
 
