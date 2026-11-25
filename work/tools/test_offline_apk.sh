@@ -212,7 +212,9 @@ fi
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
 timeout 30s adb pull /sdcard/offline-task-main.png tmp/offline-test/offline-task-main.png > /dev/null 2>&1
-timeout 10s adb shell input tap 770 715 > tmp/offline-test/task-main-claim.txt 2>&1
+# Task/MainLine layout: list x=33,y=485; btnGet center x=561,y=68.
+# Physical emulator coordinates are scaled by 1.5: (891,829).
+timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
 timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
