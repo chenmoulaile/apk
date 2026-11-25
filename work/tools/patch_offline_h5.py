@@ -2008,7 +2008,9 @@ HOOK = r"""
     selfTestItemUse:function(){
       ensure();
       var u=DM.G().userInfo,initialGold=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),
-        initialPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0);
+        initialPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0),
+        initialComposed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[3000002]&&u.itemPackInfo.idMap[3000002].count||0),
+        initialDecomposed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000590]&&u.itemPackInfo.idMap[1000590].count||0);
       function run(id,useType,count,index){
         addLocalItem(id,count);
         var req=new rp.UseItemReq();req.id=id;req.useType=useType;req.count=count;req.index=index||0;
@@ -2026,7 +2028,8 @@ HOOK = r"""
         composed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[3000002]&&u.itemPackInfo.idMap[3000002].count||0),
         decomposed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000590]&&u.itemPackInfo.idMap[1000590].count||0);
       var ok=Number(sell.ret)===0&&Number(use.ret)===0&&Number(compose.ret)===0&&Number(decompose.ret)===0&&
-        finalGold===initialGold+1&&finalPetExp>initialPetExp&&composed>=1&&decomposed>=1;
+        finalGold===initialGold+1&&finalPetExp>initialPetExp&&
+        composed===initialComposed+1&&decomposed===initialDecomposed+1;
       log("local item operations self-test",ok?"PASS":"FAIL","sell",sell.ret,"use",use.ret,
         "compose",compose.ret,"decompose",decompose.ret,"gold",initialGold,"->",finalGold,
         "petExp",initialPetExp,"->",finalPetExp,"composed",composed,"decomposed",decomposed);
