@@ -682,8 +682,40 @@ HOOK = r"""
     });
     return owners;
   }
+  function localEquipmentAttrValues(item){
+    var cfg=localItemConfig(item&&item.id),out={
+      hp:0,attack:0,defense:0,hpPercent:0,attackPercent:0,defensePercent:0
+    };
+    (cfg&&cfg.attr||[]).forEach(function(a){
+      var id=Number(a.attrId),kind=id===12?"hp":id===13?"attack":id===14?"defense":null;
+      if(!kind)return;
+      var value=Number(a.addValue)||0;
+      var level=Math.max(1,Number(item&&item.equipInfo&&item.equipInfo.strengLevel)||1);
+      // The original equipment panel scales fixed attributes after level 1.
+      if(level>1&&Number(a.addType)!==1)value=Math.floor(value*(level+9)/10);
+      if(Number(a.addType)===1)out[kind+"Percent"]+=value/10;
+      else out[kind]+=value;
+    });
+    return out;
+  }
+  function localEquipmentBonusForNode(node){
+    var total={hp:0,attack:0,defense:0,hpPercent:0,attackPercent:0,defensePercent:0};
+    (node&&node.equip||[]).forEach(function(item){
+      if(!item||!localEquipmentPosition(item.id))return;
+      var bonus=localEquipmentAttrValues(item);
+      Object.keys(total).forEach(function(k){total[k]+=Number(bonus[k])||0;});
+    });
+    return total;
+  }
+  function localApplyEquipmentBonusToAttr(target,bonus){
+    target=target||new rp.PkAttrInfo();
+    ["hp","attack","defense","hpPercent","attackPercent","defensePercent"].forEach(function(k){
+      target[k]=Number(target[k]||0)+(Number(bonus&&bonus[k])||0);
+    });
+    return target;
+  }
   function localMakeEquipSimple(item,spiritId,position){
-    var simple=new rp.EquipSimpleInfo(),cfg=localItemConfig(item&&item.id);
+    var simple=new rp.EquipSimpleInfo();
     simple.itemId=Number(item&&item.id)||0;
     simple.sid=Number(item&&item.sid)||0;
     simple.spiritId=Number(spiritId)||0;
@@ -691,12 +723,7 @@ HOOK = r"""
     simple.strengLevel=Number(item&&item.equipInfo&&item.equipInfo.strengLevel)||0;
     simple.genId=Number(item&&item.genId)||simple.sid;
     simple.starLevel=Number(item&&item.starLevel)||0;
-    simple.attrInfo=new rp.PkAttrInfo();
-    (cfg&&cfg.attr||[]).forEach(function(a){
-      var field=Number(a.attrId)===12?"oldHp":
-        Number(a.attrId)===13?"oldAttack":Number(a.attrId)===14?"oldDefense":null;
-      if(field)simple.attrInfo[field]=Number(a.addValue)||0;
-    });
+    simple.attrInfo=localApplyEquipmentBonusToAttr(new rp.PkAttrInfo(),localEquipmentAttrValues(item));
     return simple;
   }
   function localMakeEquipDetail(item,position){
@@ -707,14 +734,11 @@ HOOK = r"""
     d.starLevel=Number(item.starLevel)||0;
     d.strengInfo=new rp.EquipStrengInfo();
     d.strengInfo.strengLevel=Number(item.equipInfo&&item.equipInfo.strengLevel)||0;
-    d.strengInfo.attrInfo=new rp.PkAttrInfo();
-    d.strengInfo.nextAttrInfo=new rp.PkAttrInfo();
+    d.strengInfo.attrInfo=localApplyEquipmentBonusToAttr(
+      new rp.PkAttrInfo(),localEquipmentAttrValues(item));
+    d.strengInfo.nextAttrInfo=localApplyEquipmentBonusToAttr(
+      new rp.PkAttrInfo(),localEquipmentAttrValues(item));
     d.strengInfo.needItemNum=0;
-    (cfg&&cfg.attr||[]).forEach(function(a){
-      var field=Number(a.attrId)===12?"oldHp":
-        Number(a.attrId)===13?"oldAttack":Number(a.attrId)===14?"oldDefense":null;
-      if(field)d.strengInfo.attrInfo[field]=Number(a.addValue)||0;
-    });
     d.magicInfo=new rp.EquipMagicInfo();d.magicInfo.magicItem=[];
     d.inlayInfo=[];
     d.suitInfo=new rp.EquipSuitInfo();
@@ -855,8 +879,10 @@ HOOK = r"""
     });
     refreshLocalItemIndexes(u);
     if(changed)save();
+    var gearBonus=localEquipmentBonusForNode(node);
     log("local equipment auto-wear",slot+1,"equipped",equipped.length,
-      "positions",selectedPositions.join(","));
+      "positions",selectedPositions.join(","),
+      "bonus",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);
     return r;
   }
   function applyLocalRewardAction(a){
@@ -1010,12 +1036,22 @@ HOOK = r"""
       defense:Math.max(0,Number(defense)||0),skillId:Number(skillId)||13108,
       mp:50,status:rp.CombatSpiritStatus.ALIVE};
   }
-  function offlinePetFromEntry(pet){
+  function offlinePetFromEntry(pet,node){
     if(!pet||!Number(pet.id))return null;
     var cfg=GC.G().spiritConfig.getDes(Number(pet.id));
     if(!cfg)return null;
-    return offlineCombatPet(pet.id,pet.level||1,pet.hp||cfg.hp,pet.attack||cfg.attack,
-      pet.defense||cfg.defense,cfg.basicSkill);
+    var bonus=localEquipmentBonusForNode(node);
+    var hp=Number(pet.hp)||Number(cfg.hp)||1;
+    var attack=Number(pet.attack)||Number(cfg.attack)||1;
+    var defense=Number(pet.defense)||Number(cfg.defense)||0;
+    hp=Math.round(hp*(1+(Number(bonus.hpPercent)||0)/10000)+(Number(bonus.hp)||0));
+    attack=Math.round(attack*(1+(Number(bonus.attackPercent)||0)/10000)+(Number(bonus.attack)||0));
+    defense=Math.round(defense*(1+(Number(bonus.defensePercent)||0)/10000)+(Number(bonus.defense)||0));
+    log("local pet equipment bonus",Number(node&&node.index||0),
+      "hp",Number(bonus.hp)||0,"attack",Number(bonus.attack)||0,
+      "defense",Number(bonus.defense)||0,
+      "combat",hp,attack,defense);
+    return offlineCombatPet(pet.id,pet.level||1,hp,attack,defense,cfg.basicSkill);
   }
   function offlinePveEnemies(stage){
     var stageCfg=GC.G().NEW_SCENE_GRADE_CONF.getDes(Number(stage));
@@ -1059,7 +1095,7 @@ HOOK = r"""
       if(!pet||!Number(pet.id))continue;
       var position=Number(node.combatPos)||((i%6)+1);
       if(position<1||position>6||entries[position-1])continue;
-      entries[position-1]=offlinePetFromEntry(pet);
+      entries[position-1]=offlinePetFromEntry(pet,node);
     }
     if(!entries.some(function(x){return !!x;})){
       var fallback=petFrom(null);
@@ -1446,8 +1482,18 @@ HOOK = r"""
         r=makeOfflineSceneFight(req);
       }
       else if(Resp===rp.GetPkAttrInfoRsp){
-        r.ret=0;r.attr=new rp.PkAttrInfo();r.teamPkAttr=new rp.PkAttrInfo();
-        log("local pet attributes calculated",Number(req&&req.petIndex||0));
+        var attrUser=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+        var petIndex=Number(req&&req.petIndex);
+        var petNode=attrUser&&attrUser.petPackInfo&&attrUser.petPackInfo.packArray&&attrUser.petPackInfo.packArray[petIndex];
+        if(!petNode&&attrUser&&attrUser.petPackInfo&&attrUser.petPackInfo.packArray&&attrUser.petPackInfo.packArray[petIndex-1])petNode=attrUser.petPackInfo.packArray[petIndex-1];
+        var gearBonus=localEquipmentBonusForNode(petNode);
+        r.ret=0;r.attr=localApplyEquipmentBonusToAttr(new rp.PkAttrInfo(),gearBonus);
+        r.teamPkAttr=new rp.PkAttrInfo();
+        r.evaluteHpAbs=0;r.evaluteHpPersent=0;
+        r.evaluteAttackAbs=0;r.evaluteAttackPersent=0;
+        r.evaluteDefenseAbs=0;r.evaluteDefensePersent=0;
+        log("local pet attributes calculated",petIndex,
+          "equipment",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);
       }
       else if(Resp===rp.PetGrowupExpRsp){
         r=makeOfflinePetGrowupRsp(req,r);
