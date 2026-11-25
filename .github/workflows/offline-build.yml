@@ -286,7 +286,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            bash work/tools/test_offline_apk.sh
+            timeout --signal=TERM --kill-after=30s 25m bash work/tools/test_offline_apk.sh
 
       - name: Upload offline APK and runtime evidence
         if: always()
