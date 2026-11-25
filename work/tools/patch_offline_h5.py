@@ -2054,6 +2054,8 @@ HOOK = r"""
       log("local save restored points",Number(restoredPoints[56]||0),Number(restoredPoints[59]||0));
       var restoredCrystal=localRefreshPetCrystal(current);
       var restoredCrystalSlot=restoredCrystal&&restoredCrystal.slotInfo&&restoredCrystal.slotInfo[7];
+      var restoredStarTestPet=(current.petStorageInfo.petArray||[]).find(function(x){return Number(x&&x.id)===1108;});
+      log("local save restored star-up pet",Number(restoredStarTestPet&&restoredStarTestPet.starLevel)||0);
       var restoredItems=current.itemPackInfo&&current.itemPackInfo.idMap||{};
       log("local save restored pet crystal",Number(restoredCrystal&&restoredCrystal.type)||0,
         Number(restoredCrystal&&restoredCrystal.crystalLevel)||0,
