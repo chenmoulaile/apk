@@ -191,7 +191,7 @@ if [ "$SEEN_STAGE5_RESULT" -eq 1 ]; then
   if [ "$MAIN_CHALLENGE_RESULT_READY" -eq 1 ]; then
     # The dedicated Return to Adventure control stays at a fixed screen position,
     # independent of how many offline self-test buttons are present in the menu.
-    timeout 10s adb shell input tap 1000 60 > tmp/offline-test/exit-main-challenge.txt 2>&1
+    timeout 10s adb shell input tap 80 120 > tmp/offline-test/exit-main-challenge.txt 2>&1
     sleep 5
     timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
     timeout 30s adb pull /sdcard/offline-main-after-challenge.png tmp/offline-test/offline-main-after-challenge.png > /dev/null 2>&1
