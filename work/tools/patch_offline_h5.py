@@ -2322,7 +2322,8 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(restoredCrystal&&restoredCrystal.crystalLevel)||0,
         Number(restoredCrystalSlot&&restoredCrystalSlot.slotType)||0,
         Number(restoredCrystalSlot&&restoredCrystalSlot.genId)||0);
-      log("local save restored hangup",Number(offlineTaskMeta.lastHangupTime)||0,Number(offlineTaskMeta.dailyCounters&&offlineTaskMeta.dailyCounters[52])||0);\n      log("local save restored item operations",
+      log("local save restored hangup",Number(offlineTaskMeta.lastHangupTime)||0,Number(offlineTaskMeta.dailyCounters&&offlineTaskMeta.dailyCounters[52])||0);
+      log("local save restored item operations",
         Number(restoredItems[3000002]&&restoredItems[3000002].count||0),
         Number(restoredItems[1000590]&&restoredItems[1000590].count||0));
       if(!current.extInfo)current.extInfo=new rp.UserExtInfo();
