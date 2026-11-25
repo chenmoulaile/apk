@@ -171,16 +171,25 @@ if [ "$SEEN_STAGE4" -eq 1 ]; then
 else
   echo "stage-four reward did not appear" > tmp/offline-test/stage4-result.txt
 fi
-# After stage 1-4, close the victory panel with its left-side Return button
-# before the automatic next-stage timer starts another fight.
+# The 1-4 response is followed by a transition. Wait for the next
+# completed result (1-5), then immediately use the left-side Return button.
+SEEN_STAGE5=0
 if [ "$SEEN_STAGE4" -eq 1 ]; then
-  sleep 26
+  for attempt in $(seq 1 45); do
+    if timeout 15s adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 4 -> 5"; then
+      SEEN_STAGE5=1
+      break
+    fi
+    sleep 1
+  done
+fi
+if [ "$SEEN_STAGE5" -eq 1 ]; then
   timeout 10s adb shell input tap 295 1675 > tmp/offline-test/exit-main-challenge.txt 2>&1
   sleep 5
   timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
   timeout 30s adb pull /sdcard/offline-main-after-challenge.png tmp/offline-test/offline-main-after-challenge.png > /dev/null 2>&1
 else
-  echo "main challenge was not exited because stage 1-4 did not complete" > tmp/offline-test/exit-main-challenge.txt
+  echo "stage 1-5 result did not appear; challenge return not attempted" > tmp/offline-test/exit-main-challenge.txt
 fi
 # The pet tab is on the normal bottom navigation, only after leaving combat.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
