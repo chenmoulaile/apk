@@ -77,18 +77,25 @@ sleep 3
 timeout 20s adb shell screencap -p /sdcard/offline-task-daily-claimed.png
 timeout 30s adb pull /sdcard/offline-task-daily-claimed.png tmp/offline-test/offline-task-daily-claimed.png > /dev/null 2>&1
 # Switch to weekly tab, claim its completed local-login task, then main-story tab.
-timeout 10s adb shell input tap 420 105 > tmp/offline-test/task-week-tab.txt 2>&1
+timeout 10s adb shell input tap 350 105 > tmp/offline-test/task-week-tab.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-weekly.png
 timeout 30s adb pull /sdcard/offline-task-weekly.png tmp/offline-test/offline-task-weekly.png > /dev/null 2>&1
 timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-week-login-claim.txt 2>&1
 sleep 4
+timeout 20s adb shell screencap -p /sdcard/offline-weekly-reward-popup.png
+timeout 30s adb pull /sdcard/offline-weekly-reward-popup.png tmp/offline-test/offline-weekly-reward-popup.png > /dev/null 2>&1
+# Close the weekly login reward before switching to main-story tasks.
+timeout 10s adb shell input tap 540 1354 > tmp/offline-test/weekly-reward-confirm.txt 2>&1
+sleep 3
+timeout 20s adb shell screencap -p /sdcard/offline-task-weekly-claimed.png
+timeout 30s adb pull /sdcard/offline-task-weekly-claimed.png tmp/offline-test/offline-task-weekly-claimed.png > /dev/null 2>&1
 # Main-story tab is the third tab when the optional training tab is locked,
 # and the fourth tab when training is available.
 if adb logcat -d -v brief | grep -q "local task panel tabs 4"; then
-  adb shell input tap 900 105 > tmp/offline-test/task-main-tab.txt 2>&1
+  adb shell input tap 740 105 > tmp/offline-test/task-main-tab.txt 2>&1
 else
-  adb shell input tap 660 105 > tmp/offline-test/task-main-tab.txt 2>&1
+  adb shell input tap 545 105 > tmp/offline-test/task-main-tab.txt 2>&1
 fi
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
@@ -315,6 +322,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-task-daily.png \
   && test -s tmp/offline-test/offline-task-daily-claimed.png \
   && test -s tmp/offline-test/offline-task-weekly.png \
+  && test -s tmp/offline-test/offline-weekly-reward-popup.png \
+  && test -s tmp/offline-test/offline-task-weekly-claimed.png \
   && test -s tmp/offline-test/offline-task-main.png \
   && test -s tmp/offline-test/offline-task-main-claimed.png \
   && test -s tmp/offline-test/offline-daily-reward-popup.png \
