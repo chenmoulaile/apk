@@ -226,12 +226,16 @@ timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip
 sleep 7
 timeout 20s adb shell screencap -p /sdcard/offline-pet-before-equip.png
 timeout 30s adb pull /sdcard/offline-pet-before-equip.png tmp/offline-test/offline-pet-before-equip.png > /dev/null 2>&1
-timeout 10s adb shell input tap 800 925 > tmp/offline-test/pet-one-key-equip.txt 2>&1
+# PokemonMain UI layout places the one-key-wear button at logical (617,717),
+# and itemIcon2 at (144,693) with a 120x120 CommonItem hitbox.
+# The emulator display is 1.5x the 720x1280 layout coordinates.
+timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
 timeout 30s adb pull /sdcard/offline-equipped-screen.png tmp/offline-test/offline-equipped-screen.png > /dev/null 2>&1
-# Open the first worn equipment slot (bottom-left slot) to exercise its detail query.
-timeout 10s adb shell input tap 120 970 > tmp/offline-test/equipment-detail-open.txt 2>&1
+# Slot 1 is empty; the first rewarded gear is in slot 2 (itemIcon2).
+# Open that occupied slot to exercise the worn-list and equipment-detail queries.
+timeout 10s adb shell input tap 306 1130 > tmp/offline-test/equipment-detail-open.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
 timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
