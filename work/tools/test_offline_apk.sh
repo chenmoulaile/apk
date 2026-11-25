@@ -2,7 +2,7 @@
 set +e
 mkdir -p tmp/offline-test
 timeout 45s adb wait-for-device > tmp/offline-test/wait-device.txt 2>&1
-adb uninstall com.ruirui.cjjlq > tmp/offline-test/uninstall.txt 2>&1
+timeout 30s adb uninstall com.ruirui.cjjlq > tmp/offline-test/uninstall.txt 2>&1
 timeout 90s adb install -r dist/super-spirit-ball-offline.apk > tmp/offline-test/install.txt 2>&1
 RC=$?
 echo "$RC" > tmp/offline-test/install.exitcode
@@ -11,11 +11,11 @@ if [ "$RC" -ne 0 ]; then
   exit 1
 fi
 # Disable emulator networking before the app is opened.
-adb shell svc wifi disable > tmp/offline-test/disable-wifi.txt 2>&1
-adb shell svc data disable > tmp/offline-test/disable-data.txt 2>&1
-adb shell settings put global airplane_mode_on 1
-adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true > tmp/offline-test/airplane.txt 2>&1
-adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/launch.txt 2>&1
+timeout 15s adb shell svc wifi disable > tmp/offline-test/disable-wifi.txt 2>&1
+timeout 15s adb shell svc data disable > tmp/offline-test/disable-data.txt 2>&1
+timeout 15s adb shell settings put global airplane_mode_on 1
+timeout 15s adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true > tmp/offline-test/airplane.txt 2>&1
+timeout 30s adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/launch.txt 2>&1
 sleep 100
 timeout 20s adb shell screencap -p /sdcard/offline-game-screen.png
 timeout 30s adb pull /sdcard/offline-game-screen.png tmp/offline-test/offline-game-screen.png > /dev/null 2>&1
@@ -92,10 +92,10 @@ timeout 20s adb shell screencap -p /sdcard/offline-task-weekly-claimed.png
 timeout 30s adb pull /sdcard/offline-task-weekly-claimed.png tmp/offline-test/offline-task-weekly-claimed.png > /dev/null 2>&1
 # Main-story tab is the third tab when the optional training tab is locked,
 # and the fourth tab when training is available.
-if adb logcat -d -v brief | grep -q "local task panel tabs 4"; then
-  adb shell input tap 740 105 > tmp/offline-test/task-main-tab.txt 2>&1
+if timeout 15s adb logcat -d -v brief | grep -q "local task panel tabs 4"; then
+  timeout 10s adb shell input tap 740 105 > tmp/offline-test/task-main-tab.txt 2>&1
 else
-  adb shell input tap 545 105 > tmp/offline-test/task-main-tab.txt 2>&1
+  timeout 10s adb shell input tap 545 105 > tmp/offline-test/task-main-tab.txt 2>&1
 fi
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
@@ -131,7 +131,7 @@ timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-
 # after about 30 seconds; close each result before that transition and observe the next response.
 SEEN_STAGE2=0
 for attempt in $(seq 1 120); do
-  if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 1 -> 2"; then
+  if timeout 15s adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 1 -> 2"; then
     SEEN_STAGE2=1
     break
   fi
@@ -145,7 +145,7 @@ else
 fi
 SEEN_STAGE3=0
 for attempt in $(seq 1 45); do
-  if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 2 -> 3"; then
+  if timeout 15s adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 2 -> 3"; then
     SEEN_STAGE3=1
     break
   fi
@@ -159,7 +159,7 @@ else
 fi
 SEEN_STAGE4=0
 for attempt in $(seq 1 45); do
-  if adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 3 -> 4"; then
+  if timeout 15s adb logcat -d -v brief | grep -q "local NewSceneGradeFightRsp 3 -> 4"; then
     SEEN_STAGE4=1
     break
   fi
@@ -185,7 +185,7 @@ timeout 10s adb shell input tap 120 1130 > tmp/offline-test/equipment-detail-ope
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
 timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
-adb shell input keyevent 4 > tmp/offline-test/equipment-detail-close.txt 2>&1
+timeout 10s adb shell input keyevent 4 > tmp/offline-test/equipment-detail-close.txt 2>&1
 sleep 5
 timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
 timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 2>&1
@@ -194,9 +194,9 @@ timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
 timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
 # Preserve first-session evidence, then cold-restart while networking remains disabled.
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/first-run-logcat.txt
-adb shell am force-stop com.ruirui.cjjlq
+timeout 10s adb shell am force-stop com.ruirui.cjjlq
 sleep 3
-adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/reload-launch.txt 2>&1
+timeout 30s adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/reload-launch.txt 2>&1
 sleep 35
 timeout 20s adb shell screencap -p /sdcard/offline-reload-screen.png
 timeout 30s adb pull /sdcard/offline-reload-screen.png tmp/offline-test/offline-reload-screen.png > /dev/null 2>&1
@@ -215,9 +215,9 @@ sleep 5
 timeout 10s adb shell input tap 150 969 > tmp/offline-test/offline-evolution-self-test.txt 2>&1
 sleep 5
 # Cold-restart again to prove item, crystal, star-up and evolution changes survive.
-adb shell am force-stop com.ruirui.cjjlq
+timeout 10s adb shell am force-stop com.ruirui.cjjlq
 sleep 3
-adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/final-reload-launch.txt 2>&1
+timeout 30s adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/final-reload-launch.txt 2>&1
 sleep 30
 timeout 20s adb shell screencap -p /sdcard/offline-final-reload-screen.png
 timeout 30s adb pull /sdcard/offline-final-reload-screen.png tmp/offline-test/offline-final-reload-screen.png > /dev/null 2>&1
