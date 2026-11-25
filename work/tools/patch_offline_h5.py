@@ -1434,6 +1434,36 @@ HOOK = r"""
         params:[Number(id),Number(cardTotals[id])]
       }));
     });
+    var oldStarCfg=null;
+    try{oldStarCfg=GC.G().PetStarConf.getDes(Number(targetCfg.starTemplateId)*100+currentStar);}catch(_){}
+    function effectFor(row,type){
+      var result={percentValue:0,value:0};
+      (row&&row.effectInfo||[]).forEach(function(effect){
+        if(Number(effect.effectType)!==type)return;
+        if(Number(effect.percentValue)>0)result.percentValue=Number(effect.percentValue);
+        if(Number(effect.value)>0)result.value=Number(effect.value);
+      });
+      return result;
+    }
+    function nextStarStat(oldValue,type){
+      var before=effectFor(oldStarCfg,type),after=effectFor(starCfg,type),
+        percentDelta=after.percentValue-before.percentValue,
+        valueDelta=after.value-before.value,
+        starValueDelta=(Number(starCfg.starAddVal)||0)-(Number(oldStarCfg&&oldStarCfg.starAddVal)||0);
+      return Math.round(Number(oldValue||0)*(1+starValueDelta/10000)*
+        (1+percentDelta/10000)+valueDelta);
+    }
+    var upgradedStats={
+      hp:nextStarStat(target.hp,12),
+      attack:nextStarStat(target.attack,13),
+      defense:nextStarStat(target.defense,14)
+    };
+    if(upgradedStats.hp<=0||upgradedStats.attack<=0||upgradedStats.defense<0)
+      return {ok:false,reason:"invalid star-up attributes"};
+    var oldHp=Number(target.hp)||0,oldAttack=Number(target.attack)||0,oldDefense=Number(target.defense)||0;
+    var newFightScore=Math.floor((Number(target.fightScore)||0)+
+      1.1*(upgradedStats.hp-oldHp)+10*(upgradedStats.attack-oldAttack)+
+      10*(upgradedStats.defense-oldDefense));
     var costPlan=localCrystalCostInfo(u,allActions);
     if(!costPlan.ok)return {ok:false,reason:"star-up materials insufficient"};
     try{
@@ -1448,11 +1478,14 @@ HOOK = r"""
     }
     target.starLevel=nextStar;
     target.levelLimit=Number(starCfg.levelLimit)||Number(target.levelLimit)||100;
+    target.hp=long(upgradedStats.hp);target.attack=long(upgradedStats.attack);
+    target.defense=long(upgradedStats.defense);target.fightScore=long(newFightScore);
     localCrystalSyncPet(u,target);
     localNotifyInventoryChanged(u,true);
     save();
     log("local pet star-up",Number(target.id),String(targetGenId),currentStar,"->",nextStar,
-      "fodder",selected.join(","),"materials",allActions.length);
+      "fodder",selected.join(","),"cards",JSON.stringify(cardTotals),"materials",allActions.length,
+      "stats",String(target.hp),String(target.attack),String(target.defense),String(target.fightScore));
     return {ok:true,target:target,star:nextStar,consumedPets:selected,starConfig:starCfg};
   }
   function makeOfflinePetStarLevelUpRsp(req,r){
@@ -2545,8 +2578,9 @@ HOOK = r"""
       var afterCard=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001159]&&u.itemPackInfo.idMap[1001159].count||0),
         afterMaterial=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001001]&&u.itemPackInfo.idMap[1001001].count||0),
         remainingFodder=fodder.filter(function(pet){return !!localPetOwnedRecord(u,pet.genId);}).length;
-      var ok=Number(rsp.ret)===0&&Number(target.starLevel)===6&&beforeCard>=1&&afterCard===beforeCard-1&&
-        beforeMaterial>=1000&&afterMaterial===beforeMaterial-1000&&remainingFodder===0;
+      var ok=Number(rsp.ret)===0&&Number(target.starLevel)===6&&Number(target.hp)>13000&&
+        beforeCard>=1&&afterCard===beforeCard-1&&beforeMaterial>=1000&&
+        afterMaterial===beforeMaterial-1000&&remainingFodder===0;
       log("local pet star-card self-test",ok?"PASS":"FAIL","ret",rsp.ret,
         "star",5,"->",Number(target.starLevel)||0,
         "card",beforeCard,"->",afterCard,"material",beforeMaterial,"->",afterMaterial,
@@ -2572,7 +2606,8 @@ HOOK = r"""
       var req=new rp.OnePetStarLevelUpReq();req.petGenIds=Number(entry.genId);req.choiceCost=[];
       var rsp=makeOfflineOnePetStarLevelUpRsp(req,new rp.OnePetStarLevelUpRsp());
       var after=localPetOwnedRecord(u,entry.genId);
-      var ok=Number(rsp.ret)===0&&after&&Number(after.pet.starLevel)===3;
+      var ok=Number(rsp.ret)===0&&after&&Number(after.pet.starLevel)===3&&
+        Number(after.pet.hp)>1600&&Number(after.pet.attack)>620&&Number(after.pet.defense)>160;
       log("local pet star-up self-test",ok?"PASS":"FAIL","ret",rsp.ret,
         "pet",Number(entry.id),"genId",Number(entry.genId),
         "star",Number(entry.starLevel),"->",Number(after&&after.pet&&after.pet.starLevel)||0);
