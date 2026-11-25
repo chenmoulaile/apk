@@ -1154,35 +1154,59 @@ HOOK = r"""
     if(!u||!u.baseInfo){r.ret=1;return r;}
     current=u;
     var ids=Array.isArray(req&&req.itemId)?req.itemId:[],
-      plans=[],totalConsumed=0;
+      requested=Array.isArray(req&&req.count)?req.count:[],
+      plans=[],allActions=[],totalConsumed=0,seen={};
     if(!ids.length||ids.length>100){r.ret=1;return r;}
+    var selectedGift=Number(window.__offlineSelectedGiftIndex)||0;
     for(var i=0;i<ids.length;i++){
       var id=Number(ids[i])||0,cfg=localItemConfig(id),
         stack=u.itemPackInfo&&u.itemPackInfo.idMap&&u.itemPackInfo.idMap[id],
         need=Math.max(1,Math.floor(Number(cfg&&cfg.composeNeedItemNum)||0)),
         available=Math.max(0,Math.floor(Number(stack&&stack.count)||0)),
-        outputCount=Math.floor(available/need),
         gain=Number(cfg&&cfg.composeGainId)||0,
-        composeType=Number(cfg&&cfg.composeType);
-      if(!cfg||!gain||!need||outputCount<=0){r.ret=1;log("local mixture rejected",id,available,need);return r;}
-      if(composeType===4||composeType===5){r.ret=1;log("local mixture requires interactive gift choice",id);return r;}
-      var rewardType=composeType===2?Number(rp.Action.ActionTye.ADD_PET):Number(rp.Action.ActionTye.ADD_ITEM);
-      var plan=[{type:rewardType,params:[gain,outputCount]}];
-      if(!localValidateRewardPlan(u,plan)){r.ret=1;log("local mixture invalid reward",id,gain,composeType);return r;}
-      plans.push({id:id,consume:outputCount*need,actions:plan});
-      totalConsumed+=outputCount*need;
+        composeType=Number(cfg&&cfg.composeType),
+        consume=Number(requested[i])>0?Math.floor(Number(requested[i])):Math.floor(available/need)*need;
+      if(seen[id]||!cfg||!gain||!need||consume<need||consume>available||consume%need!==0){
+        r.ret=1;log("local mixture rejected",id,available,need,consume);return r;
+      }
+      seen[id]=true;
+      var outputCount=Math.floor(consume/need),actions=[];
+      if(composeType===4){
+        var legacy=localGiftRewardActions(gain,selectedGift,
+          Number(offlineTaskMeta.itemUseCounter)||0);
+        if(!legacy){r.ret=1;log("local mixture choice rejected",id,gain,selectedGift);return r;}
+        for(var g=0;g<outputCount;g++)actions=actions.concat(legacy);
+      }else if(composeType===5){
+        var modern=localNewGiftRewardActions(gain,selectedGift,
+          Number(offlineTaskMeta.itemUseCounter)||0,true);
+        if(!modern){r.ret=1;log("local mixture new choice rejected",id,gain,selectedGift);return r;}
+        for(var ng=0;ng<outputCount;ng++)actions=actions.concat(modern);
+      }else{
+        var rewardType=composeType===2?Number(rp.Action.ActionTye.ADD_PET):Number(rp.Action.ActionTye.ADD_ITEM);
+        actions=[{type:rewardType,params:[gain,outputCount]}];
+      }
+      plans.push({id:id,consume:consume,actions:actions});
+      allActions=allActions.concat(actions);totalConsumed+=consume;
     }
-    // Validate all fragments first; only mutate after every output has passed validation.
+    // Validate every resulting item/pet before consuming any source fragments.
+    if(!localValidateRewardPlan(u,allActions)){
+      r.ret=1;log("local mixture reward validation failed");return r;
+    }
     plans.forEach(function(entry){
       var item=u.itemPackInfo.idMap[entry.id];
       item.count=Math.max(0,Number(item.count||0)-entry.consume);
       if(item.count===0)delete u.itemPackInfo.idMap[entry.id];
       entry.actions.forEach(applyLocalRewardAction);
-      log("local mixture composed",entry.id,entry.consume,entry.actions[0].params[0],entry.actions[0].params[1]);
+      log("local mixture composed",entry.id,entry.consume,entry.actions.length);
     });
-    localNotifyInventoryChanged(u,plans.some(function(entry){
-      return entry.actions.some(function(a){return Number(a.type)===Number(rp.Action.ActionTye.ADD_PET);});
-    }));
+    var petChanged=allActions.some(function(a){
+      var type=Number(a&&a.type);
+      return type===Number(rp.Action.ActionTye.ADD_PET)||
+        (type>=100001&&type<=100015);
+    });
+    localNotifyInventoryChanged(u,petChanged);
+    offlineTaskMeta.itemUseCounter=(Number(offlineTaskMeta.itemUseCounter)||0)+totalConsumed;
+    window.__offlineSelectedGiftIndex=0;
     save();r.ret=0;
     log("local mixture batch complete",plans.length,totalConsumed);
     return r;
@@ -1777,6 +1801,25 @@ HOOK = r"""
       b.leader=new rp.GlobalPetSnap();b.leader.id=3101+i%4;b.leader.level=b.level;b.petPackInfo=new rp.PetPackInfo();return b;
     });
   }
+  function hookOfflineGiftChoice(cls){
+    try{
+      var proto=cls&&cls.prototype;
+      if(!proto||typeof proto.doOpen!=="function"||proto.__offlineGiftChoiceHook)return;
+      var original=proto.doOpen;
+      proto.doOpen=function(){
+        window.__offlineSelectedGiftIndex=Math.max(0,Number(this.selectIndex)||0);
+        log("local gift choice selected",window.__offlineSelectedGiftIndex);
+        return original.apply(this,arguments);
+      };
+      proto.__offlineGiftChoiceHook=true;
+    }catch(e){log("local gift choice hook",e&&e.stack||e);}
+  }
+  try{
+    if(typeof mdl!=="undefined"&&mdl.NewBag){
+      hookOfflineGiftChoice(mdl.NewBag.CompositeGift);
+      hookOfflineGiftChoice(mdl.NewBag.CompositeNewGift);
+    }
+  }catch(e){log("local gift choice hook init",e&&e.stack||e);}
   if(typeof QuickSdkMgr!=="undefined"){
     QuickSdkMgr.prototype.init=function(){log("SDK bypass");return Promise.resolve();};
     QuickSdkMgr.prototype.showPrivace=function(cb){var x={status:true,message:"offline"};cb&&cb(x);return Promise.resolve(x);};
