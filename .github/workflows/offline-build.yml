@@ -2,7 +2,7 @@ name: Build and test offline Android APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, offline-pet-progression-rebased]
     paths:
       - ".github/workflows/offline-build.yml"
       - "work/tools/patch_offline_h5.py"
@@ -105,6 +105,22 @@ jobs:
           test -s tmp/offline-build/game/zip.txt
           test -s tmp/offline-build/game/libQuickSDKH5_To_Client.js
 
+      - name: Restore evolution pet combat sprite
+        shell: bash
+        run: |
+          mkdir -p tmp/offline-build/game/res/combat/spirits
+          curl -fL --retry 3 --connect-timeout 15 --max-time 90 \
+            "https://cjjlqres.ruiruiyouxi.com/taptapReleaseRes/res/combat/spirits/mon233.png" \
+            -o tmp/offline-build/game/res/combat/spirits/mon233.png
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("tmp/offline-build/game/res/combat/spirits/mon233.png")
+          data = path.read_bytes()
+          if len(data) < 1024 or not data.startswith(bytes.fromhex("89504e470d0a1a0a")):
+              raise SystemExit("mon233.png is missing or not a valid PNG")
+          print("Restored evolution pet sprite:", len(data), "bytes")
+          PY
+
       - name: Apply local login, data, WebSocket and save patch
         run: |
           python3 work/tools/patch_offline_h5.py tmp/offline-build/game
@@ -191,6 +207,7 @@ jobs:
               "res/items/1/1000019.png",
               "res/items/1/1001019.png",
               "res/combat/spirits/mon124.png",
+              "res/combat/spirits/mon233.png",
               "res/music/20001.wav",
               "res/music/20019.wav",
           ]
