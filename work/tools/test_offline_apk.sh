@@ -193,13 +193,13 @@ adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp
 sleep 35
 timeout 20s adb shell screencap -p /sdcard/offline-reload-screen.png
 timeout 30s adb pull /sdcard/offline-reload-screen.png tmp/offline-test/offline-reload-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 740 50 > tmp/offline-test/offline-menu-open.txt 2>&1
+timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-menu-open.txt 2>&1
 sleep 2
 timeout 20s adb shell screencap -p /sdcard/offline-tools-menu.png
 timeout 30s adb pull /sdcard/offline-tools-menu.png tmp/offline-test/offline-tools-menu.png > /dev/null 2>&1
-timeout 10s adb shell input tap 900 305 > tmp/offline-test/offline-item-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 260 > tmp/offline-test/offline-item-self-test.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 900 355 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 320 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
 sleep 4
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/reload-logcat.txt
 cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt > tmp/offline-test/logcat.txt
