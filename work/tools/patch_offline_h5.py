@@ -1923,6 +1923,16 @@ HOOK = r"""
       log("local save restored pet",Number(restoredPet&&restoredPet.level||0),String(restoredPet&&restoredPet.hp||0),String(restoredPet&&restoredPet.attack||0),String(restoredPet&&restoredPet.defense||0));
       var restoredPoints=current.baseInfo.newPointItemMap||{};
       log("local save restored points",Number(restoredPoints[56]||0),Number(restoredPoints[59]||0));
+      var restoredCrystal=localRefreshPetCrystal(current);
+      var restoredCrystalSlot=restoredCrystal&&restoredCrystal.slotInfo&&restoredCrystal.slotInfo[7];
+      var restoredItems=current.itemPackInfo&&current.itemPackInfo.idMap||{};
+      log("local save restored pet crystal",Number(restoredCrystal&&restoredCrystal.type)||0,
+        Number(restoredCrystal&&restoredCrystal.crystalLevel)||0,
+        Number(restoredCrystalSlot&&restoredCrystalSlot.slotType)||0,
+        Number(restoredCrystalSlot&&restoredCrystalSlot.genId)||0);
+      log("local save restored item operations",
+        Number(restoredItems[3000002]&&restoredItems[3000002].count||0),
+        Number(restoredItems[1000590]&&restoredItems[1000590].count||0));
       if(!current.extInfo)current.extInfo=new rp.UserExtInfo();
       if(!current.extInfo.newGuildInfo)current.extInfo.newGuildInfo=new rp.NewGuildInfo();
       current.extInfo.newGuildInfo.version=0;current.extInfo.newGuildInfo.steps=current.extInfo.newGuildInfo.steps||{};
