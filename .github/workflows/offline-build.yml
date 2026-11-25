@@ -143,6 +143,8 @@ jobs:
               "atlas/Checkpoint/offLineGiftPanel.atlas",
               "atlas/CombatFormation.atlas",
               "atlas/NewBag.atlas",
+              "atlas/Task.atlas",
+              "atlas/bx.atlas",
               "atlas/combat/result.atlas",
               "atlas/combat/communicator.atlas",
               "atlas/Checkpoint/MainChallenge/bg1.png",
