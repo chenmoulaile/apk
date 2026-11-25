@@ -189,9 +189,9 @@ if [ "$SEEN_STAGE5_RESULT" -eq 1 ]; then
     sleep 1
   done
   if [ "$MAIN_CHALLENGE_RESULT_READY" -eq 1 ]; then
-    timeout 10s adb shell input tap 80 50 > tmp/offline-test/open-offline-menu-for-return.txt 2>&1
-    sleep 2
-    timeout 10s adb shell input tap 150 1195 > tmp/offline-test/exit-main-challenge.txt 2>&1
+    # The dedicated Return to Adventure control stays at a fixed screen position,
+    # independent of how many offline self-test buttons are present in the menu.
+    timeout 10s adb shell input tap 1000 60 > tmp/offline-test/exit-main-challenge.txt 2>&1
     sleep 5
     timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
     timeout 30s adb pull /sdcard/offline-main-after-challenge.png tmp/offline-test/offline-main-after-challenge.png > /dev/null 2>&1
@@ -264,6 +264,12 @@ timeout 10s adb shell input tap 150 517 > tmp/offline-test/offline-item-self-tes
 sleep 5
 timeout 10s adb shell input tap 150 630 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
 sleep 5
+timeout 10s adb shell input tap 150 743 > tmp/offline-test/offline-star-self-test.txt 2>&1
+sleep 5
+timeout 10s adb shell input tap 150 856 > tmp/offline-test/offline-star-card-self-test.txt 2>&1
+sleep 5
+timeout 10s adb shell input tap 150 969 > tmp/offline-test/offline-evolution-self-test.txt 2>&1
+sleep 5
 # Cold-restart again to prove the item and crystal changes themselves survive.
 timeout 10s adb shell am force-stop com.ruirui.cjjlq
 sleep 3
@@ -313,9 +319,17 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4 bonus 3125 229 175" tmp/offline-test/logcat.txt \
   && grep -q "local equipment inventory query 2 1" tmp/offline-test/logcat.txt \
   && grep -q "local equipment inventory detail 2 1 3101 hp 3125" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored equipment 3 3" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored equipment 4 4" tmp/offline-test/logcat.txt \
   && grep -q "local item operations self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local pet star-up self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local pet star-card self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local pet evolution self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored pet evolution 1208" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored pet evolution gear 3125" tmp/offline-test/logcat.txt \
   && grep -q "local main challenge result panel ready 6" tmp/offline-test/logcat.txt \
   && grep -q "local main challenge sequence complete 6" tmp/offline-test/logcat.txt \
   && grep -q "local return to adventure closed CombatWinUI1" tmp/offline-test/logcat.txt \
