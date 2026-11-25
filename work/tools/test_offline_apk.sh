@@ -203,7 +203,9 @@ timeout 10s adb shell input tap 150 320 > tmp/offline-test/offline-crystal-self-
 sleep 5
 timeout 10s adb shell input tap 150 380 > tmp/offline-test/offline-star-self-test.txt 2>&1
 sleep 5
-# Cold-restart again to prove the item, crystal and pet star-up changes themselves survive.
+timeout 10s adb shell input tap 150 440 > tmp/offline-test/offline-star-card-self-test.txt 2>&1
+sleep 5
+# Cold-restart again to prove both pet star-up paths survive.
 adb shell am force-stop com.ruirui.cjjlq
 sleep 3
 adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/final-reload-launch.txt 2>&1
@@ -256,6 +258,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet star-up self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
+  && grep -q "local pet star-card self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175" tmp/offline-test/logcat.txt \
