@@ -74,6 +74,11 @@ CORE_FILES = [
     # "atlas/Task/bg1.png,Task,bx". They are not literal .atlas strings in code.js.
     "atlas/Task.atlas",
     "atlas/bx.atlas",
+    # Task rewards and daily/weekly panels request these images by ID at runtime.
+    "res/items/1/1001021.png",
+    "res/icons/rhyd_01.png",
+    "res/items/1/1001259.png",
+    "res/items/1/1001011.png",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"

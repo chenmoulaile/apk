@@ -81,7 +81,7 @@ timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
 timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
 # Exercise the restored local daily, weekly and main-story task flows.
 # The task shortcut opens the original game task panels backed by local task data.
-timeout 10s adb shell input tap 1030 30 > tmp/offline-test/task-shortcut-tap.txt 2>&1
+timeout 10s adb shell input tap 1000 50 > tmp/offline-test/task-shortcut-tap.txt 2>&1
 sleep 12
 timeout 20s adb shell screencap -p /sdcard/offline-task-daily.png
 timeout 30s adb pull /sdcard/offline-task-daily.png tmp/offline-test/offline-task-daily.png > /dev/null 2>&1
@@ -122,7 +122,7 @@ timeout 10s adb shell input tap 1050 1818 > tmp/offline-test/task-panel-close.tx
 sleep 5
 # The main-challenge victory modal was left underneath the Task panel.
 # Tap its in-game Return button before using the normal bottom navigation.
-timeout 10s adb shell input tap 315 1440 > tmp/offline-test/challenge-result-return.txt 2>&1
+timeout 10s adb shell input tap 295 1675 > tmp/offline-test/challenge-result-return.txt 2>&1
 sleep 6
 timeout 20s adb shell screencap -p /sdcard/offline-after-task-return.png
 timeout 30s adb pull /sdcard/offline-after-task-return.png tmp/offline-test/offline-after-task-return.png > /dev/null 2>&1
@@ -133,12 +133,12 @@ timeout 30s adb pull /sdcard/offline-bag-screen.png tmp/offline-test/offline-bag
 # Use the game's real one-key-wear button on the Spirit page.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
 sleep 6
-timeout 10s adb shell input tap 920 925 > tmp/offline-test/pet-one-key-equip.txt 2>&1
+timeout 10s adb shell input tap 920 1075 > tmp/offline-test/pet-one-key-equip.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipped-screen.png
 timeout 30s adb pull /sdcard/offline-equipped-screen.png tmp/offline-test/offline-equipped-screen.png > /dev/null 2>&1
 # Open the first worn slot to exercise the equipment-detail query.
-timeout 10s adb shell input tap 110 965 > tmp/offline-test/equipment-detail-open.txt 2>&1
+timeout 10s adb shell input tap 120 1130 > tmp/offline-test/equipment-detail-open.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-equipment-detail-screen.png
 timeout 30s adb pull /sdcard/offline-equipment-detail-screen.png tmp/offline-test/offline-equipment-detail-screen.png > /dev/null 2>&1
@@ -191,8 +191,10 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment item reward 4000003 1 position 3" tmp/offline-test/logcat.txt \
   && grep -q "local equipment item reward 4000004 1 position 4" tmp/offline-test/logcat.txt \
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4" tmp/offline-test/logcat.txt \
+  && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4 bonus 3125 229 175" tmp/offline-test/logcat.txt \
   && grep -q "local equipment worn query 1 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored equipment 3 3" tmp/offline-test/logcat.txt \
+  && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
