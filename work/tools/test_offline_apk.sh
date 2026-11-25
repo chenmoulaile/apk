@@ -74,6 +74,11 @@ timeout 30s adb pull /sdcard/offline-battle-screen.png tmp/offline-test/offline-
 sleep 110
 timeout 20s adb shell screencap -p /sdcard/offline-progress-screen.png
 timeout 30s adb pull /sdcard/offline-progress-screen.png tmp/offline-test/offline-progress-screen.png > /dev/null 2>&1
+# Dismiss the victory/defeat result before opening tasks; result overlays otherwise stay above the Task panel.
+timeout 10s adb shell input tap 295 1675 > tmp/offline-test/combat-result-return.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-after-combat-return.png
+timeout 30s adb pull /sdcard/offline-after-combat-return.png tmp/offline-test/offline-after-combat-return.png > /dev/null 2>&1
 timeout 20s adb shell uiautomator dump /sdcard/offline-ui.xml > tmp/offline-test/ui-dump.txt 2>&1
 timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 2>&1
 timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
@@ -96,7 +101,7 @@ sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-task-daily-claimed.png
 timeout 30s adb pull /sdcard/offline-task-daily-claimed.png tmp/offline-test/offline-task-daily-claimed.png > /dev/null 2>&1
 # Switch to weekly tab, claim its completed local-login task, then main-story tab.
-timeout 10s adb shell input tap 350 105 > tmp/offline-test/task-week-tab.txt 2>&1
+timeout 10s adb shell input tap 420 105 > tmp/offline-test/task-week-tab.txt 2>&1
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-weekly.png
 timeout 30s adb pull /sdcard/offline-task-weekly.png tmp/offline-test/offline-task-weekly.png > /dev/null 2>&1
@@ -104,10 +109,10 @@ timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-week-login-claim
 sleep 4
 # Main-story tab is the third tab when the optional training tab is locked,
 # and the fourth tab when training is available.
-if grep -q "local task panel tabs 4" tmp/offline-test/first-run-logcat.txt 2>/dev/null; then
-  adb shell input tap 740 105 > tmp/offline-test/task-main-tab.txt 2>&1
+if adb logcat -d -v brief | grep -q "local task panel tabs 4"; then
+  adb shell input tap 900 105 > tmp/offline-test/task-main-tab.txt 2>&1
 else
-  adb shell input tap 545 105 > tmp/offline-test/task-main-tab.txt 2>&1
+  adb shell input tap 660 105 > tmp/offline-test/task-main-tab.txt 2>&1
 fi
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
@@ -116,16 +121,11 @@ timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
 timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
-# Close the game's Task panel using its in-game close button (not Android Back).
-# The panel is 720x1280 logical pixels; its close button is anchored at (725,1213).
-timeout 10s adb shell input tap 1050 1818 > tmp/offline-test/task-panel-close.txt 2>&1
-sleep 5
-# The main-challenge victory modal was left underneath the Task panel.
-# Tap its in-game Return button before using the normal bottom navigation.
-timeout 10s adb shell input tap 295 1675 > tmp/offline-test/challenge-result-return.txt 2>&1
+# Close Task through its own btnClose at logical (725,1213), scaled to 1080x1920.
+timeout 10s adb shell input tap 1070 1818 > tmp/offline-test/task-panel-close.txt 2>&1
 sleep 6
-timeout 20s adb shell screencap -p /sdcard/offline-after-task-return.png
-timeout 30s adb pull /sdcard/offline-after-task-return.png tmp/offline-test/offline-after-task-return.png > /dev/null 2>&1
+timeout 20s adb shell screencap -p /sdcard/offline-after-task-close.png
+timeout 30s adb pull /sdcard/offline-after-task-close.png tmp/offline-test/offline-after-task-close.png > /dev/null 2>&1
 timeout 10s adb shell input tap 690 1835 > tmp/offline-test/bag-tab-tap.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-bag-screen.png
@@ -254,7 +254,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-bag-screen.png \
   && test -s tmp/offline-test/offline-equipped-screen.png \
   && test -s tmp/offline-test/offline-equipment-detail-screen.png \
-  && test -s tmp/offline-test/offline-after-task-return.png; then
+  && test -s tmp/offline-test/offline-after-combat-return.png \
+  && test -s tmp/offline-test/offline-after-task-close.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
 fi
