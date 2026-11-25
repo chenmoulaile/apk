@@ -2410,14 +2410,34 @@ HOOK = r"""
     returnToAdventure:function(){
       try{
         var combat=typeof game!=="undefined"&&game.combat&&game.combat.Combat&&game.combat.Combat.getInstance();
-        if(combat&&combat.duringCombat){
-          log("local return to adventure blocked: combat still active");
-          return false;
-        }
+        var winClass=typeof game!=="undefined"&&game.combat&&game.combat.CombatWinUI1;
         var panelClass=typeof mdl!=="undefined"&&mdl.Checkpoint&&mdl.Checkpoint.MainChallenge;
         var manager=typeof PM!=="undefined"&&PM.G&&PM.G(),panels=manager&&manager.panelList||[];
-        for(var i=panels.length-1;i>=0;i--){
-          var panel=panels[i];
+        function findWin(root){
+          if(!root)return null;
+          if(winClass&&root instanceof winClass)return root;
+          var count=Number(root.numChildren)||0;
+          for(var k=0;k<count;k++){var found=findWin(root.getChildAt(k));if(found)return found;}
+          return null;
+        }
+        var winPanel=null;
+        for(var i=panels.length-1;i>=0&&!winPanel;i--)winPanel=findWin(panels[i]);
+        if(combat&&combat.duringCombat&&!winPanel){
+          log("local return to adventure blocked: battle has no result panel yet");
+          return false;
+        }
+        if(winPanel){
+          if(typeof winPanel.onClose==="function"){
+            winPanel.onClose();
+            log("local return to adventure closed CombatWinUI1");
+          }else{
+            log("local return to adventure result panel has no close handler");
+            return false;
+          }
+        }
+        panels=manager&&manager.panelList||[];
+        for(var j=panels.length-1;j>=0;j--){
+          var panel=panels[j];
           if(panelClass&&panel instanceof panelClass){
             if(typeof panel.onClose==="function")panel.onClose();
             else manager.closePanel(panel);
@@ -2425,6 +2445,7 @@ HOOK = r"""
             return true;
           }
         }
+        if(winPanel)return true;
         log("local return to adventure MainChallenge panel not found");
       }catch(e){log("local return to adventure error",e&&e.stack||e);}
       return false;
@@ -2459,6 +2480,31 @@ HOOK = r"""
       challenge.__offlineCompletionHook=true;
     }
   }catch(e){log("local main challenge completion hook",e&&e.stack||e);}
+  try{
+    var combatUIClass=typeof game!=="undefined"&&game.combat&&game.combat.CombatUI;
+    if(combatUIClass&&combatUIClass.prototype&&typeof combatUIClass.prototype.onCombatDone==="function"&&!combatUIClass.prototype.__offlineResultHook){
+      var originalCombatDone=combatUIClass.prototype.onCombatDone;
+      combatUIClass.prototype.onCombatDone=function(){
+        var result=originalCombatDone.apply(this,arguments),self=this;
+        if(Number(this.winType)===Number(game.combat.Combat.winType.MainChallenge)){
+          var deadline=Date.now()+15000;
+          var findResult=function(){
+            if(!self||self.destroyed||!self.parent)return;
+            var resultClass=game.combat.CombatWinUI1,found=false;
+            if(resultClass)for(var i=0;i<(Number(self.numChildren)||0);i++){
+              var child=self.getChildAt(i);
+              if(child instanceof resultClass){found=true;break;}
+            }
+            if(found)log("local main challenge result panel ready",Number(DM.G().userInfo.newSceneGradeInfo.sceneLevel)||0);
+            else if(Date.now()<deadline)setTimeout(findResult,250);
+          };
+          setTimeout(findResult,250);
+        }
+        return result;
+      };
+      combatUIClass.prototype.__offlineResultHook=true;
+    }
+  }catch(e){log("local main challenge result hook",e&&e.stack||e);}
   setInterval(save,15000);window.addEventListener("beforeunload",save);log("offline patch installed");
 })();
 """
