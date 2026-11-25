@@ -28,6 +28,7 @@ OFFLINE_UI_SKIN_PREFIXES = (
     "checkpoint/quickchallenge/",
     "checkpoint/quickchallengeend/",
     "checkpoint/offlinegiftpanel/",
+    "receive/",
     "combatformation/",
     "combat/",
     "newbag/",

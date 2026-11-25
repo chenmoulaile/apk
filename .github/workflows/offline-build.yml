@@ -152,6 +152,7 @@ jobs:
               "atlas/receive.atlas",
               "atlas/receive/title.atlas",
               "atlas/receive/bgAni1.atlas",
+              "atlas/receive/huode_shilianb.png",
               "atlas/equipmentAlert.atlas",
               "atlas/ElfSummon.atlas",
               "atlas/PerserateSpace/Ani3.atlas",
