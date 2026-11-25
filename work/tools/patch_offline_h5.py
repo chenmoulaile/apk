@@ -2486,7 +2486,7 @@ HOOK = r"""
       var originalCombatDone=combatUIClass.prototype.onCombatDone;
       combatUIClass.prototype.onCombatDone=function(){
         var result=originalCombatDone.apply(this,arguments),self=this;
-        if(Number(this.winType)===Number(game.combat.Combat.winType.MainChallenge)){
+        if(Number(this.winType)===Number(game.combat.winType.MainChallenge)){
           var deadline=Date.now()+15000;
           var findResult=function(){
             if(!self||self.destroyed||!self.parent)return;
