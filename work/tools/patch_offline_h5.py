@@ -123,11 +123,15 @@ HOOK = r"""
   var offlineToday=offlineDateKey(),offlineWeek=offlineWeekKey();
   var offlineDayReset=offlineTaskMeta.dayKey!==offlineToday;
   var offlineWeekReset=offlineTaskMeta.weekKey!==offlineWeek;
-  if(offlineDayReset){offlineTaskMeta.dayKey=offlineToday;offlineTaskMeta.dailyCounters={};offlineTaskMeta.lastHangupTime=Math.floor(Date.now()/1000)-3600;}
+  if(offlineDayReset){offlineTaskMeta.dayKey=offlineToday;offlineTaskMeta.dailyCounters={};}
   if(offlineWeekReset){offlineTaskMeta.weekKey=offlineWeek;offlineTaskMeta.weeklyCounters={};}
   if(!offlineTaskMeta.dailyCounters)offlineTaskMeta.dailyCounters={};
   if(!offlineTaskMeta.weeklyCounters)offlineTaskMeta.weeklyCounters={};
   if(!offlineTaskMeta.lastHangupTime)offlineTaskMeta.lastHangupTime=Math.floor(Date.now()/1000)-3600;
+  var expectedHangupRestore=Number(offlineTaskMeta.expectedHangupRestoreTime)||0;
+  var hangupRestoredAfterDayReset=offlineDayReset&&expectedHangupRestore>0&&
+    Number(offlineTaskMeta.lastHangupTime)===expectedHangupRestore&&
+    Number(offlineTaskMeta.dailyCounters[52]||0)===0;
   var quickCombatUsed=offlineDayReset?0:(Number(saved.quickCombatUsed)||0);
   var long=function(v){try{if($util.Long)return $util.Long.fromString(String(v),true);}catch(e){}return Number(v)||0;};
   function currentCardSeason(){
@@ -2322,7 +2326,10 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(restoredCrystal&&restoredCrystal.crystalLevel)||0,
         Number(restoredCrystalSlot&&restoredCrystalSlot.slotType)||0,
         Number(restoredCrystalSlot&&restoredCrystalSlot.genId)||0);
-      log("local save restored hangup",Number(offlineTaskMeta.lastHangupTime)||0,Number(offlineTaskMeta.dailyCounters&&offlineTaskMeta.dailyCounters[52])||0);
+      log("local save restored hangup",Number(offlineTaskMeta.lastHangupTime)||0,
+        Number(offlineTaskMeta.dailyCounters&&offlineTaskMeta.dailyCounters[52])||0,
+        expectedHangupRestore>0?(hangupRestoredAfterDayReset?"PRESERVED":"NOT_PRESERVED"):"UNTESTED");
+      if(expectedHangupRestore>0)delete offlineTaskMeta.expectedHangupRestoreTime;
       log("local save restored item operations",
         Number(restoredItems[3000002]&&restoredItems[3000002].count||0),
         Number(restoredItems[1000590]&&restoredItems[1000590].count||0));
@@ -2879,6 +2886,15 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         });
       }
       var now=Math.floor(Date.now()/1000);
+      offlineTaskMeta.lastHangupTime=now-59;
+      var shortTime=Number(offlineTaskMeta.lastHangupTime),beforeShort=fingerprint(),
+        shortReq=new rp.HangupOperateReq();
+      shortReq.operate=0;
+      var shortQuery=makeOfflineHangupRsp(shortReq,new rp.HangupOperateRsp());
+      var shortOk=Number(shortQuery.ret)===0&&Array.isArray(shortQuery.awards)&&
+        shortQuery.awards.length===0&&Number(offlineTaskMeta.lastHangupTime)===shortTime&&
+        fingerprint()===beforeShort;
+      now=Math.floor(Date.now()/1000);
       offlineTaskMeta.lastHangupTime=now-3600;
       var queryTime=Number(offlineTaskMeta.lastHangupTime),beforeQuery=fingerprint(),
         queryReq=new rp.HangupOperateReq();
@@ -2903,10 +2919,13 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         (!duplicate.awards||duplicate.awards.length===0)&&
         fingerprint()===afterClaim&&
         (Number(offlineTaskMeta.dailyCounters[52])||0)===claimsAfter;
-      var ok=queryOk&&claimOk&&duplicateOk;
+      var ok=shortOk&&queryOk&&claimOk&&duplicateOk;
       log("local hangup self-test",ok?"PASS":"FAIL",
         "query",query.ret,"claim",claim.ret,"duplicate",duplicate.ret,
+        "under60",shortOk?"PASS":"FAIL",
         "level",level,"rewards",claim.awards&&claim.awards.length||0);
+      offlineTaskMeta.expectedHangupRestoreTime=Number(offlineTaskMeta.lastHangupTime)||0;
+      offlineTaskMeta.dayKey="1999-12-31";
       save();
       return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,
         rewards:claim.awards&&claim.awards.length||0};
