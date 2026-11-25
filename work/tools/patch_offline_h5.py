@@ -2823,7 +2823,7 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         beforeGold=Number(money.gold||0);
       addLocalItem(1000019,500);
       var beforeStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000019]&&u.itemPackInfo.idMap[1000019].count||0);
-      var pet=petFrom({id:1108,genId:880001,level:1,starLevel:2});
+      var pet=petFrom({id:1108,genId:880001,level:2,starLevel:2});
       packs[index].pet=pet;packs[index].state=1;packs[index].combatPos=0;
       // Give the test pet a real configured item so evolution must preserve
       // and calculate the same equipment bonus as the original evolution UI.
