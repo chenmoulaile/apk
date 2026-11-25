@@ -171,7 +171,18 @@ if [ "$SEEN_STAGE4" -eq 1 ]; then
 else
   echo "stage-four reward did not appear" > tmp/offline-test/stage4-result.txt
 fi
-# Leave the challenge flow and inspect the Spirit page while the next auto-advance is pending.
+# After stage 1-4, close the victory panel with its left-side Return button
+# before the automatic next-stage timer starts another fight.
+if [ "$SEEN_STAGE4" -eq 1 ]; then
+  sleep 26
+  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/exit-main-challenge.txt 2>&1
+  sleep 5
+  timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
+  timeout 30s adb pull /sdcard/offline-main-after-challenge.png tmp/offline-test/offline-main-after-challenge.png > /dev/null 2>&1
+else
+  echo "main challenge was not exited because stage 1-4 did not complete" > tmp/offline-test/exit-main-challenge.txt
+fi
+# The pet tab is on the normal bottom navigation, only after leaving combat.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
 sleep 7
 timeout 20s adb shell screencap -p /sdcard/offline-pet-before-equip.png
@@ -263,6 +274,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
+  && test -s tmp/offline-test/offline-main-after-challenge.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
   && test -s tmp/offline-test/offline-pet-storage-screen.png \
   && test -s tmp/offline-test/offline-pet-levelup-screen.png \
