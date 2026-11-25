@@ -1310,7 +1310,136 @@ HOOK = r"""
     var stored=u.petStorageInfo&&u.petStorageInfo.petArray||[];
     stored.forEach(function(entry){if(entry&&String(entry.genId)===String(pet.genId))Object.keys(pet).forEach(function(k){entry[k]=pet[k];});});
   }
-  function localCrystalCostInfo(u,actions){
+  function localPetOwnedRecord(u,genId){
+    genId=String(genId);
+    var packs=u&&u.petPackInfo&&u.petPackInfo.packArray||[];
+    for(var i=0;i<packs.length;i++){
+      var node=packs[i],pet=node&&node.pet;
+      if(pet&&String(pet.genId)===genId)return {kind:"pack",index:i,node:node,pet:pet};
+    }
+    var stored=u&&u.petStorageInfo&&u.petStorageInfo.petArray||[];
+    for(var j=0;j<stored.length;j++){
+      if(stored[j]&&String(stored[j].genId)===genId)
+        return {kind:"storage",index:j,pet:stored[j]};
+    }
+    return null;
+  }
+  function localPetStarCostMatches(target,targetCfg,candidate,rule){
+    if(!target||!targetCfg||!candidate||!rule)return false;
+    if(Number(candidate.starLevel||0)!==Number(rule.star||0))return false;
+    var cfg=null;
+    try{cfg=GC.G().spiritConfig.getDes(Number(candidate.id));}catch(_){}
+    if(!cfg)return false;
+    if(Number(rule.samePet||0)){
+      var ancestor=Number(targetCfg.ancestor)||Number(targetCfg.evoAncestor)||Number(target.id);
+      if(Number(candidate.id)!==ancestor)return false;
+    }else if(Number(rule.sameElement||0)){
+      if(Number(cfg.element)!==Number(targetCfg.element))return false;
+    }else if(Number(targetCfg.quality||0)===7&&
+             [5,6].indexOf(Number(cfg.quality||0))<0){
+      return false;
+    }
+    return true;
+  }
+  function localRemovePetForStarUp(u,genId){
+    var record=localPetOwnedRecord(u,genId);
+    if(!record)return false;
+    if(record.kind==="pack"){
+      var node=record.node;
+      if((node.equip||[]).length)return false;
+      node.pet=null;node.state=0;node.combatPos=0;
+    }else{
+      u.petStorageInfo.petArray.splice(record.index,1);
+    }
+    return true;
+  }
+  function localPetStarLevelUp(u,targetGenId,groups){
+    if(!u||!u.baseInfo||!Number(targetGenId))return {ok:false,reason:"missing user or target"};
+    var targetRecord=localPetOwnedRecord(u,targetGenId);
+    if(!targetRecord)return {ok:false,reason:"target pet not owned"};
+    var target=targetRecord.pet,targetCfg=null;
+    try{targetCfg=GC.G().spiritConfig.getDes(Number(target.id));}catch(_){}
+    if(!targetCfg)return {ok:false,reason:"target pet config missing"};
+    var currentStar=Math.max(1,Number(target.starLevel)||1);
+    var nextStar=currentStar+1;
+    if(nextStar>Number(targetCfg.maxStarLevel||99))return {ok:false,reason:"maximum star reached"};
+    var starCfg=null;
+    try{starCfg=GC.G().PetStarConf.getDes(Number(targetCfg.starTemplateId)*100+nextStar);}catch(_){}
+    if(!starCfg||Number(starCfg.star)!==nextStar)
+      return {ok:false,reason:"next star configuration missing"};
+    var rules=Array.isArray(starCfg.cost)?starCfg.cost:[];
+    groups=Array.isArray(groups)?groups:[];
+    if(groups.length!==rules.length)return {ok:false,reason:"star cost groups mismatch"};
+    var selected=[],seen={},allActions=[];
+    for(var g=0;g<rules.length;g++){
+      var rule=rules[g]||{},ids=Array.isArray(groups[g])?groups[g]:[];
+      if(ids.length!==Number(rule.num||0))return {ok:false,reason:"wrong fodder count"};
+      for(var k=0;k<ids.length;k++){
+        var id=Number(ids[k])||0,key=String(id),record=localPetOwnedRecord(u,id);
+        if(!id||id===Number(targetGenId)||seen[key]||!record)
+          return {ok:false,reason:"fodder pet missing or duplicated"};
+        if(!localPetStarCostMatches(target,targetCfg,record.pet,rule))
+          return {ok:false,reason:"fodder pet does not match configured star cost"};
+        if(record.kind==="pack"&&(record.node.equip||[]).length)
+          return {ok:false,reason:"fodder pet still has equipment"};
+        seen[key]=true;selected.push(id);
+      }
+    }
+    var costActions=starCfg.actionArr;
+    if(costActions){
+      if(Array.isArray(costActions))allActions=costActions.map(localNormalizeRewardAction);
+      else allActions=[localNormalizeRewardAction(costActions)];
+      if(allActions.some(function(x){return !x;}))
+        return {ok:false,reason:"invalid star-up cost action"};
+    }
+    var costPlan=localCrystalCostInfo(u,allActions);
+    if(!costPlan.ok)return {ok:false,reason:"star-up materials insufficient"};
+    try{
+      if(!localCrystalConsumeCosts(u,costPlan.requirements))
+        return {ok:false,reason:"star-up cost could not be consumed"};
+    }catch(e){
+      return {ok:false,reason:"star-up cost error: "+String(e&&e.message||e)};
+    }
+    for(var n=0;n<selected.length;n++){
+      if(!localRemovePetForStarUp(u,selected[n]))
+        return {ok:false,reason:"fodder pet removal failed"};
+    }
+    target.starLevel=nextStar;
+    target.levelLimit=Number(starCfg.levelLimit)||Number(target.levelLimit)||100;
+    localCrystalSyncPet(u,target);
+    localNotifyInventoryChanged(u,true);
+    save();
+    log("local pet star-up",Number(target.id),String(targetGenId),currentStar,"->",nextStar,
+      "fodder",selected.join(","),"materials",allActions.length);
+    return {ok:true,target:target,star:nextStar,consumedPets:selected,starConfig:starCfg};
+  }
+  function makeOfflinePetStarLevelUpRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    var targets=Array.isArray(req&&req.petGenIds)?req.petGenIds:[];
+    if(!u||!u.baseInfo||targets.length!==1){r.ret=1;log("local PetStarLevelUp rejected: use one target per request");return r;}
+    var groups=(req&&req.costGroups||[]).map(function(g){return g&&g.costPetGenIds||[];});
+    var result=localPetStarLevelUp(u,targets[0],groups);
+    r.ret=result.ok?0:1;
+    if(result.ok)r.petGenId=Number(targets[0]);
+    else log("local PetStarLevelUp rejected",String(targets[0]),result.reason);
+    return r;
+  }
+  function makeOfflineOnePetStarLevelUpRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    var choices=Array.isArray(req&&req.choiceCost)?req.choiceCost:[],groups=[];
+    for(var i=0;i<choices.length;i++){
+      var choice=choices[i]||{},cards=choice.costCards||[];
+      if(cards.length){r.ret=1;log("local OnePetStarLevelUp rejected: unsupported fodder cards");return r;}
+      groups.push(choice.petGenIds||[]);
+    }
+    var result=localPetStarLevelUp(u,req&&req.petGenIds,groups);
+    r.ret=result.ok?0:1;
+    if(result.ok)r.petGenId=Number(req.petGenIds);
+    else log("local OnePetStarLevelUp rejected",Number(req&&req.petGenIds),result.reason);
+    return r;
+  }
+    function localCrystalCostInfo(u,actions){
     var money=u&&u.baseInfo&&u.baseInfo.moneyInfo||new rp.MoneyInfo();
     var points=u&&u.baseInfo&&u.baseInfo.newPointItemMap||{};
     var requirements={items:{},gold:0,diamond:0,cash:0,points:{}};
@@ -2211,6 +2340,12 @@ HOOK = r"""
       else if(Resp===rp.PetCrystalBreakRsp){
         r=makeOfflinePetCrystalBreakRsp(r);
       }
+      else if(Resp===rp.PetStarLevelUpRsp){
+        r=makeOfflinePetStarLevelUpRsp(req,r);
+      }
+      else if(Resp===rp.OnePetStarLevelUpRsp){
+        r=makeOfflineOnePetStarLevelUpRsp(req,r);
+      }
       else if(Resp===rp.PetGrowupExpRsp){
         r=makeOfflinePetGrowupRsp(req,r);
       }
@@ -2326,6 +2461,30 @@ HOOK = r"""
     addDiamond:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.diamond=Number(m.diamond||0)+Number(n||0);save();},
     addCash:function(n){ensure();var m=DM.G().userInfo.baseInfo.moneyInfo;m.cash=Number(m.cash||0)+Number(n||0);save();},
     addItem:function(id,count){ensure();addLocalItem(id,count);save();},
+    selfTestPetStarUp:function(){
+      ensure();
+      var u=DM.G().userInfo,entry=null;
+      if(!localAddPetToStorage(u,1108,1,2)){
+        log("local pet star-up self-test FAIL could not seed pet");
+        return {pass:false};
+      }
+      var stored=u.petStorageInfo.petArray||[];
+      for(var i=stored.length-1;i>=0;i--){
+        if(Number(stored[i]&&stored[i].id)===1108&&Number(stored[i].starLevel)===2){
+          entry=stored[i];break;
+        }
+      }
+      if(!entry){log("local pet star-up self-test FAIL seeded pet not found");return {pass:false};}
+      var req=new rp.OnePetStarLevelUpReq();req.petGenIds=Number(entry.genId);req.choiceCost=[];
+      var rsp=makeOfflineOnePetStarLevelUpRsp(req,new rp.OnePetStarLevelUpRsp());
+      var after=localPetOwnedRecord(u,entry.genId);
+      var ok=Number(rsp.ret)===0&&after&&Number(after.pet.starLevel)===3;
+      log("local pet star-up self-test",ok?"PASS":"FAIL","ret",rsp.ret,
+        "pet",Number(entry.id),"genId",Number(entry.genId),
+        "star",Number(entry.starLevel),"->",Number(after&&after.pet&&after.pet.starLevel)||0);
+      save();
+      return {pass:ok,ret:rsp.ret,genId:Number(entry.genId),star:Number(after&&after.pet&&after.pet.starLevel)||0};
+    },
     selfTestPetCrystal:function(){
       ensure();
       var u=DM.G().userInfo,info=localRefreshPetCrystal(u),
@@ -2439,13 +2598,13 @@ OVERLAY = """
 <div id="offline-menu-button">离线菜单</div>
 <div id="offline-task-button">任务</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
