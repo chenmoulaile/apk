@@ -2018,6 +2018,11 @@ HOOK = r"""
       log("local save restored item operations",
         Number(restoredItems[3000002]&&restoredItems[3000002].count||0),
         Number(restoredItems[1000590]&&restoredItems[1000590].count||0));
+      var restoredEvolutionPet=(current.petPackInfo.packArray||[]).find(function(node){
+        return node&&node.pet&&Number(node.pet.genId)===880001;
+      });
+      log("local save restored pet evolution",
+        Number(restoredEvolutionPet&&restoredEvolutionPet.pet&&restoredEvolutionPet.pet.id)||0);
       if(!current.extInfo)current.extInfo=new rp.UserExtInfo();
       if(!current.extInfo.newGuildInfo)current.extInfo.newGuildInfo=new rp.NewGuildInfo();
       current.extInfo.newGuildInfo.version=0;current.extInfo.newGuildInfo.steps=current.extInfo.newGuildInfo.steps||{};
