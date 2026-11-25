@@ -272,6 +272,8 @@ timeout 10s adb shell input tap 150 969 > tmp/offline-test/offline-evolution-sel
 sleep 5
 timeout 10s adb shell input tap 150 1082 > tmp/offline-test/offline-hangup-self-test.txt 2>&1
 sleep 5
+timeout 10s adb shell input tap 150 1195 > tmp/offline-test/offline-quick-hangup-self-test.txt 2>&1
+sleep 5
 sleep 5
 # Cold-restart again to prove the item and crystal changes themselves survive.
 timeout 10s adb shell am force-stop com.ruirui.cjjlq
@@ -322,13 +324,14 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4 bonus 3125 229 175" tmp/offline-test/logcat.txt \
   && grep -q "local equipment inventory query 2 1" tmp/offline-test/logcat.txt \
   && grep -q "local equipment inventory detail 2 1 3101 hp 3125" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored equipment 4 4" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored equipment 4 12" tmp/offline-test/logcat.txt \
   && grep -q "local item operations self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet star-up self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet star-card self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local pet evolution self-test PASS" tmp/offline-test/logcat.txt \
   && grep -q "local hangup self-test PASS query 0 claim 0 duplicate 1 under60 PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local quick hangup self-test PASS query 0 claim 0 duplicate 1 paid 1 rewards 12" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
   && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
@@ -342,6 +345,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "local inventory listener 2 TypeError" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
   && grep -Eq "local save restored hangup [1-9][0-9]* 0 PRESERVED" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored quick hangup 1" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175 combat 17425 2649 1495" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
