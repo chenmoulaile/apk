@@ -1133,6 +1133,11 @@ HOOK = r"""
       if(!dm)return;
       dm.userInfo=u;
       refreshLocalItemIndexes(u);
+      try{
+        var baseNotify=new rp.EntireNotify();
+        baseNotify.userBaseInfo=u.baseInfo;
+        dm.onUserInfoChange(baseNotify);
+      }catch(e){log("local base info notify",e);}
       var changes=[2];
       if(petChanged)changes.push(5);
       changes.forEach(function(type){
