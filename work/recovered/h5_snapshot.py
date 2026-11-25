@@ -70,6 +70,10 @@ CORE_FILES = [
     "atlas/combat/result.atlas",
     "atlas/combat/communicator.atlas",
     "atlas/NewBag.atlas",
+    # The task entry panel declares two dynamic groups in its showPanel resource key:
+    # "atlas/Task/bg1.png,Task,bx". They are not literal .atlas strings in code.js.
+    "atlas/Task.atlas",
+    "atlas/bx.atlas",
 ]
 EXT_RE = re.compile(
     r"(?<![A-Za-z0-9_])((?:atlas|res|json|font|sound|scene|role|music)/"
