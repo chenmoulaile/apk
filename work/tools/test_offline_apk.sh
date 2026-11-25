@@ -92,6 +92,11 @@ timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
 timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
+# Close Task before opening Main Challenge so the challenge click is not blocked underneath.
+timeout 10s adb shell input tap 1070 1818 > tmp/offline-test/task-panel-close.txt 2>&1
+sleep 6
+timeout 20s adb shell screencap -p /sdcard/offline-after-task-close.png
+timeout 30s adb pull /sdcard/offline-after-task-close.png tmp/offline-test/offline-after-task-close.png > /dev/null 2>&1
 # Main Challenge button center: logical (355,1078), scaled to 1080x1920.
 timeout 10s adb shell input tap 533 1617 > tmp/offline-test/main-challenge-tap.txt 2>&1
 sleep 5
@@ -153,15 +158,6 @@ timeout 20s adb pull /sdcard/offline-ui.xml tmp/offline-test/ui.xml > /dev/null 
 timeout 20s adb shell dumpsys activity activities > tmp/offline-test/activities.txt 2>&1
 timeout 20s adb shell dumpsys window windows > tmp/offline-test/windows.txt 2>&1
 timeout 20s adb shell pidof com.ruirui.cjjlq > tmp/offline-test/app-pid.txt 2>&1
-# Close Task through its own btnClose at logical (725,1213), scaled to 1080x1920.
-timeout 10s adb shell input tap 1070 1818 > tmp/offline-test/task-panel-close.txt 2>&1
-sleep 6
-timeout 20s adb shell screencap -p /sdcard/offline-after-task-close.png
-timeout 30s adb pull /sdcard/offline-after-task-close.png tmp/offline-test/offline-after-task-close.png > /dev/null 2>&1
-timeout 10s adb shell input tap 690 1835 > tmp/offline-test/bag-tab-tap.txt 2>&1
-sleep 8
-timeout 20s adb shell screencap -p /sdcard/offline-bag-screen.png
-timeout 30s adb pull /sdcard/offline-bag-screen.png tmp/offline-test/offline-bag-screen.png > /dev/null 2>&1
 # Use the game's real one-key-wear button on the Spirit page.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
 sleep 6
