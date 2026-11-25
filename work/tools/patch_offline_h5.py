@@ -2008,8 +2008,7 @@ HOOK = r"""
     selfTestItemUse:function(){
       ensure();
       var u=DM.G().userInfo,initialGold=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),
-        initialPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0),
-        initialFragment=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000227]&&u.itemPackInfo.idMap[1000227].count||0);
+        initialPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0);
       function run(id,useType,count,index){
         addLocalItem(id,count);
         var req=new rp.UseItemReq();req.id=id;req.useType=useType;req.count=count;req.index=index||0;
@@ -2017,14 +2016,14 @@ HOOK = r"""
       }
       var sell=run(1000006,Number(rp.UseItemReq.UseType.USETYPE_SELL),1,0);
       var use=run(1001011,Number(rp.UseItemReq.UseType.USETYPE_USE),1,0);
-      var compose=run(1000227,Number(rp.UseItemReq.UseType.USETYPE_COMPOSE),10,0);
+      var compose=run(3000001,Number(rp.UseItemReq.UseType.USETYPE_COMPOSE),2,0);
       addLocalItem(3000001,1);
       var decomposeReq=new rp.UseItemReq();decomposeReq.id=3000001;
       decomposeReq.useType=Number(rp.UseItemReq.UseType.USETYPE_DECOMPOSE);decomposeReq.count=1;
       var decompose=makeOfflineUseItemRsp(decomposeReq,new rp.UseItemRsp());
       var finalGold=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),
         finalPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0),
-        composed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000224]&&u.itemPackInfo.idMap[1000224].count||0),
+        composed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[3000002]&&u.itemPackInfo.idMap[3000002].count||0),
         decomposed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000590]&&u.itemPackInfo.idMap[1000590].count||0);
       var ok=Number(sell.ret)===0&&Number(use.ret)===0&&Number(compose.ret)===0&&Number(decompose.ret)===0&&
         finalGold===initialGold+1&&finalPetExp>initialPetExp&&composed>=1&&decomposed>=1;
