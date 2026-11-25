@@ -116,7 +116,7 @@ jobs:
           from pathlib import Path
           path = Path("tmp/offline-build/game/res/combat/spirits/mon233.png")
           data = path.read_bytes()
-          if len(data) < 1024 or data[:8] != b"\\x89PNG\\r\\n\\x1a\\n":
+          if len(data) < 1024 or not data.startswith(bytes.fromhex("89504e470d0a1a0a")):
               raise SystemExit("mon233.png is missing or not a valid PNG")
           print("Restored evolution pet sprite:", len(data), "bytes")
           PY
