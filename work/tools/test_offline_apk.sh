@@ -184,12 +184,28 @@ if [ "$SEEN_STAGE4" -eq 1 ]; then
   done
 fi
 if [ "$SEEN_STAGE5_RESULT" -eq 1 ]; then
-  timeout 10s adb shell input tap 295 1675 > tmp/offline-test/exit-main-challenge.txt 2>&1
-  sleep 5
-  timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
-  timeout 30s adb pull /sdcard/offline-main-after-challenge.png tmp/offline-test/offline-main-after-challenge.png > /dev/null 2>&1
+  # The 5 -> 6 response starts stage 1-6. Wait until that battle completes naturally.
+  MAIN_CHALLENGE_DONE=0
+  for attempt in $(seq 1 60); do
+    if timeout 15s adb logcat -d -v brief | grep -q "local main challenge sequence complete 6"; then
+      MAIN_CHALLENGE_DONE=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$MAIN_CHALLENGE_DONE" -eq 1 ]; then
+    # Close the Main Challenge panel through the offline menu helper, not a battle-screen coordinate.
+    timeout 10s adb shell input tap 80 50 > tmp/offline-test/open-offline-menu-for-return.txt 2>&1
+    sleep 2
+    timeout 10s adb shell input tap 150 1195 > tmp/offline-test/exit-main-challenge.txt 2>&1
+    sleep 5
+    timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
+    timeout 30s adb pull /sdcard/offline-main-after-challenge.png tmp/offline-test/offline-main-after-challenge.png > /dev/null 2>&1
+  else
+    echo "stage 1-6 battle did not complete; challenge return not attempted" > tmp/offline-test/exit-main-challenge.txt
+  fi
 else
-  echo "stage 1-5 victory result did not appear; challenge return not attempted" > tmp/offline-test/exit-main-challenge.txt
+  echo "stage 1-6 did not start; challenge return not attempted" > tmp/offline-test/exit-main-challenge.txt
 fi
 # The pet tab is on the normal bottom navigation, only after leaving combat.
 timeout 10s adb shell input tap 385 1825 > tmp/offline-test/pet-tab-before-equip.txt 2>&1
@@ -278,7 +294,11 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment worn query 1 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored equipment 3 3" tmp/offline-test/logcat.txt \
   && grep -q "local item operations self-test PASS" tmp/offline-test/logcat.txt \
-  && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt
+  && grep -q "local main challenge sequence complete 6" tmp/offline-test/logcat.txt
+  && grep -q "local return to adventure closed MainChallenge" tmp/offline-test/logcat.txt
+  && ! grep -q "local NewSceneGradeFightRsp 6 -> 7" tmp/offline-test/logcat.txt
+  && ! grep -q "local inventory listener 2 TypeError" tmp/offline-test/logcat.txt \
   && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175" tmp/offline-test/logcat.txt \

@@ -1142,9 +1142,11 @@ HOOK = r"""
       dm.userInfo=u;
       refreshLocalItemIndexes(u);
       try{
-        var baseNotify=new rp.EntireNotify();
-        baseNotify.userBaseInfo=u.baseInfo;
-        dm.onUserInfoChange(baseNotify);
+        var changeNotify=new rp.EntireNotify();
+        changeNotify.userBaseInfo=u.baseInfo;
+        changeNotify.itemPackInfo=[];
+        changeNotify.petPackInfo=[];
+        dm.onUserInfoChange(changeNotify);
       }catch(e){log("local base info notify",e);}
       var changes=[2];
       if(petChanged)changes.push(5);
@@ -1152,7 +1154,7 @@ HOOK = r"""
         dm.dataChangedFlag[type]=true;
         var handlers=dm.listeners&&dm.listeners[type]||[];
         handlers.slice().forEach(function(handler){
-          try{if(handler&&handler.runWith)handler.runWith(null);else if(typeof handler==="function")handler();}catch(e){log("local inventory listener",type,e);}
+          try{if(handler&&handler.runWith)handler.runWith(changeNotify);else if(typeof handler==="function")handler(changeNotify);}catch(e){log("local inventory listener",type,e);}
         });
       });
     }catch(e){log("local inventory notify",e&&e.stack||e);}
@@ -1421,9 +1423,8 @@ HOOK = r"""
     }
     var pet=localCrystalFindPet(u,slot.genId);
     if(pet){pet.crystalLevel=0;localCrystalSyncPet(u,pet);}
-    var sharedConf=null;
-    try{sharedConf=GC.G().SharedCrystalCon.getDes(1);}catch(e){log("local crystal cooldown config",e);}
-    var cooldownSeconds=Math.max(1,Number(sharedConf&&sharedConf.slotCdTime)||28800);
+    // The archived pet-crystal flow uses an eight-hour cooldown.
+    var cooldownSeconds=8*60*60;
     slot.slotType=Number(rp.PetCrystalSlot.Type.CoolDown);
     slot.coolEndTime=Math.floor(Date.now()/1000)+cooldownSeconds;
     r.ret=0;r.info=info;
@@ -2335,8 +2336,7 @@ HOOK = r"""
         log("local pet crystal self-test SKIP slot7 already unlocked");
         return {pass:true,skipped:true};
       }
-      // Slot 7 costs 200 cash and 30 item 1001004 in the archived table.
-      addLocalItem(1001004,30);
+      // Slot 7 offers two alternative payments; costType 0 selects the 200-cash option.
       var beforeStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001004]&&u.itemPackInfo.idMap[1001004].count||0);
       var unlockReq=new rp.PetCrystalUnlockReq();unlockReq.index=7;unlockReq.costType=0;
       var unlock=makeOfflinePetCrystalUnlockRsp(unlockReq,new rp.PetCrystalUnlockRsp());
@@ -2355,7 +2355,7 @@ HOOK = r"""
         afterStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001004]&&u.itemPackInfo.idMap[1001004].count||0);
       var ok=Number(unlock.ret)===0&&Number(placed&&placed.ret)===0&&
         Number(removed&&removed.ret)===0&&Number(cleared&&cleared.ret)===0&&
-        afterCash===beforeCash-200-96&&beforeStones>=30&&afterStones===beforeStones-30&&
+        afterCash===beforeCash-200-96&&afterStones===beforeStones&&
         slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.Unlock);
       log("local pet crystal self-test",ok?"PASS":"FAIL",
         "unlock",unlock.ret,"set",placed&&placed.ret,"get",removed&&removed.ret,
@@ -2407,6 +2407,28 @@ HOOK = r"""
     saveAndNotify:function(){ensure();try{var e=new rp.EntireNotify();e.userBaseInfo=DM.G().userInfo.baseInfo;DM.G().onUserInfoChange(e);}catch(x){}save();},
     reset:function(){localStorage.removeItem(KEY);location.reload();},
     bots:bots().map(function(x){return {name:x.name,level:x.level,offline:true};}),
+    returnToAdventure:function(){
+      try{
+        var combat=typeof game!=="undefined"&&game.combat&&game.combat.Combat&&game.combat.Combat.getInstance();
+        if(combat&&combat.duringCombat){
+          log("local return to adventure blocked: combat still active");
+          return false;
+        }
+        var panelClass=typeof mdl!=="undefined"&&mdl.Checkpoint&&mdl.Checkpoint.MainChallenge;
+        var manager=typeof PM!=="undefined"&&PM.G&&PM.G(),panels=manager&&manager.panelList||[];
+        for(var i=panels.length-1;i>=0;i--){
+          var panel=panels[i];
+          if(panelClass&&panel instanceof panelClass){
+            if(typeof panel.onClose==="function")panel.onClose();
+            else manager.closePanel(panel);
+            log("local return to adventure closed MainChallenge");
+            return true;
+          }
+        }
+        log("local return to adventure MainChallenge panel not found");
+      }catch(e){log("local return to adventure error",e&&e.stack||e);}
+      return false;
+    },
     openTasks:function(tab){
       try{
         ensure();
@@ -2422,6 +2444,21 @@ HOOK = r"""
       return false;
     }
   };
+  try{
+    var challenge=typeof mdl!=="undefined"&&mdl.Checkpoint&&mdl.Checkpoint.MainChallengeStatic;
+    if(challenge&&typeof challenge.openCombat==="function"&&!challenge.__offlineCompletionHook){
+      var originalOpenCombat=challenge.openCombat;
+      challenge.openCombat=function(){
+        var completedLevel=Number(this.fightRsp&&this.fightRsp.sceneLevel)||Number(this.level)||0;
+        var hadSequence=!!(this.fightRsp&&this.fightData);
+        var result=originalOpenCombat.apply(this,arguments);
+        if(hadSequence&&this.fightRsp==null&&this.fightData==null)
+          log("local main challenge sequence complete",completedLevel);
+        return result;
+      };
+      challenge.__offlineCompletionHook=true;
+    }
+  }catch(e){log("local main challenge completion hook",e&&e.stack||e);}
   setInterval(save,15000);window.addEventListener("beforeunload",save);log("offline patch installed");
 })();
 """
@@ -2439,13 +2476,13 @@ OVERLAY = """
 <div id="offline-menu-button">离线菜单</div>
 <div id="offline-task-button">任务</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main")OfflineGame.returnToAdventure();if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
