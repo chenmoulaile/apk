@@ -933,7 +933,15 @@ HOOK = r"""
       addLocalItem(p[0],p[1]);
     }else if(type===Number(rp.Action.ActionTye.ADD_PET)){
       localAddPetToStorage(u,p[0],p[1],0);
-    }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)||type===Number(rp.Action.ActionTye.ADD_LEVEL_EXP)){
+    }else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)){
+      var pointId=Number(p[0])||0,pointAmount=Number(p[1])||0;
+      var pointMoney=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo());
+      if(pointId===1)pointMoney.cash=Number(pointMoney.cash||0)+pointAmount;
+      else if(pointId===2)pointMoney.diamond=Number(pointMoney.diamond||0)+pointAmount;
+      else if(pointId===3)pointMoney.gold=long(Number(pointMoney.gold||0)+pointAmount);
+      else addLocalPointItem(pointId,pointAmount);
+      log("local point currency reward",pointId,pointAmount);
+    }else if(type===Number(rp.Action.ActionTye.ADD_LEVEL_EXP)){
       addLocalPointItem(p[0],p[1]);
     }else if(type===Number(rp.Action.ActionTye.UNLOCK_AVATAR)){
       var avatarId=Number(p[0])||0;
@@ -1245,11 +1253,16 @@ HOOK = r"""
         plan=[{type:Number(rp.Action.ActionTye.ADD_ITEM),params:[gain,outputCount]}];
       }else if(composeType===2){
         plan=[{type:Number(rp.Action.ActionTye.ADD_PET),params:[gain,outputCount]}];
-      }else if(composeType===4||composeType===5){
-        var giftActions=localNewGiftRewardActions(gain,req&&req.index,
-          Number(offlineTaskMeta.itemUseCounter)||0,true);
-        if(!giftActions){r.ret=1;log("local compose gift rejected: choose a valid reward",id,gain,req&&req.index);return r;}
+      }else if(composeType===4){
+        var giftActions=localGiftRewardActions(gain,req&&req.index,
+          Number(offlineTaskMeta.itemUseCounter)||0);
+        if(!giftActions){r.ret=1;log("local compose legacy gift rejected: choose a valid reward",id,gain,req&&req.index);return r;}
         for(var out=0;out<outputCount;out++)plan=plan.concat(giftActions);
+      }else if(composeType===5){
+        var newGiftActions=localNewGiftRewardActions(gain,req&&req.index,
+          Number(offlineTaskMeta.itemUseCounter)||0,true);
+        if(!newGiftActions){r.ret=1;log("local compose new gift rejected: choose a valid reward",id,gain,req&&req.index);return r;}
+        for(var newOut=0;newOut<outputCount;newOut++)plan=plan.concat(newGiftActions);
       }else{r.ret=1;return r;}
       units=outputCount;
     }else if(kind===Number(rp.UseItemReq.UseType.USETYPE_USE)){
@@ -1994,16 +2007,33 @@ HOOK = r"""
     addItem:function(id,count){ensure();addLocalItem(id,count);save();},
     selfTestItemUse:function(){
       ensure();
-      var u=DM.G().userInfo,before=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0);
-      var req=new rp.UseItemReq();req.id=1001011;req.useType=Number(rp.UseItemReq.UseType.USETYPE_USE);req.count=1;
-      addLocalItem(1001011,1);
-      var rsp=makeOfflineUseItemRsp(req,new rp.UseItemRsp());
-      var after=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0);
-      var remaining=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001011]&&u.itemPackInfo.idMap[1001011].count||0);
-      var ok=Number(rsp.ret)===0&&after>before&&remaining===0;
-      log("local item use self-test",ok?"PASS":"FAIL","ret",rsp.ret,"petExp",before,"->",after,"remaining",remaining);
+      var u=DM.G().userInfo,initialGold=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),
+        initialPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0),
+        initialFragment=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000227]&&u.itemPackInfo.idMap[1000227].count||0);
+      function run(id,useType,count,index){
+        addLocalItem(id,count);
+        var req=new rp.UseItemReq();req.id=id;req.useType=useType;req.count=count;req.index=index||0;
+        return makeOfflineUseItemRsp(req,new rp.UseItemRsp());
+      }
+      var sell=run(1000006,Number(rp.UseItemReq.UseType.USETYPE_SELL),1,0);
+      var use=run(1001011,Number(rp.UseItemReq.UseType.USETYPE_USE),1,0);
+      var compose=run(1000227,Number(rp.UseItemReq.UseType.USETYPE_COMPOSE),10,0);
+      addLocalItem(3000001,1);
+      var decomposeReq=new rp.UseItemReq();decomposeReq.id=3000001;
+      decomposeReq.useType=Number(rp.UseItemReq.UseType.USETYPE_DECOMPOSE);decomposeReq.count=1;
+      var decompose=makeOfflineUseItemRsp(decomposeReq,new rp.UseItemRsp());
+      var finalGold=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0),
+        finalPetExp=Number(u.baseInfo.newPointItemMap&&u.baseInfo.newPointItemMap[5]||0),
+        composed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000224]&&u.itemPackInfo.idMap[1000224].count||0),
+        decomposed=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1000590]&&u.itemPackInfo.idMap[1000590].count||0);
+      var ok=Number(sell.ret)===0&&Number(use.ret)===0&&Number(compose.ret)===0&&Number(decompose.ret)===0&&
+        finalGold===initialGold+1&&finalPetExp>initialPetExp&&composed>=1&&decomposed>=1;
+      log("local item operations self-test",ok?"PASS":"FAIL","sell",sell.ret,"use",use.ret,
+        "compose",compose.ret,"decompose",decompose.ret,"gold",initialGold,"->",finalGold,
+        "petExp",initialPetExp,"->",finalPetExp,"composed",composed,"decomposed",decomposed);
       save();
-      return {ret:rsp.ret,before:before,after:after,remaining:remaining,pass:ok};
+      return {pass:ok,sell:sell.ret,use:use.ret,compose:compose.ret,decompose:decompose.ret,
+        gold:finalGold,petExp:finalPetExp,composed:composed,decomposed:decomposed};
     },
     useItem:function(id,useType,count,index,sid){
       ensure();
