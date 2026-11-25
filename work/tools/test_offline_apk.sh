@@ -193,8 +193,23 @@ adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp
 sleep 35
 timeout 20s adb shell screencap -p /sdcard/offline-reload-screen.png
 timeout 30s adb pull /sdcard/offline-reload-screen.png tmp/offline-test/offline-reload-screen.png > /dev/null 2>&1
-timeout 30s adb logcat -d -v threadtime > tmp/offline-test/reload-logcat.txt
-cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt > tmp/offline-test/logcat.txt
+timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-menu-open.txt 2>&1
+sleep 2
+timeout 20s adb shell screencap -p /sdcard/offline-tools-menu.png
+timeout 30s adb pull /sdcard/offline-tools-menu.png tmp/offline-test/offline-tools-menu.png > /dev/null 2>&1
+timeout 10s adb shell input tap 150 260 > tmp/offline-test/offline-item-self-test.txt 2>&1
+sleep 5
+timeout 10s adb shell input tap 150 320 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
+sleep 5
+# Cold-restart again to prove the item and crystal changes themselves survive.
+adb shell am force-stop com.ruirui.cjjlq
+sleep 3
+adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUNCHER 1 > tmp/offline-test/final-reload-launch.txt 2>&1
+sleep 30
+timeout 20s adb shell screencap -p /sdcard/offline-final-reload-screen.png
+timeout 30s adb pull /sdcard/offline-final-reload-screen.png tmp/offline-test/offline-final-reload-screen.png > /dev/null 2>&1
+timeout 30s adb logcat -d -v threadtime > tmp/offline-test/final-reload-logcat.txt
+cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt tmp/offline-test/final-reload-logcat.txt > tmp/offline-test/logcat.txt
 {
   echo "=== install ==="
   cat tmp/offline-test/install.txt
@@ -235,6 +250,10 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local equipment auto-wear 1 equipped 3 positions 2,3,4 bonus 3125 229 175" tmp/offline-test/logcat.txt \
   && grep -q "local equipment worn query 1 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored equipment 3 3" tmp/offline-test/logcat.txt \
+  && grep -q "local item operations self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local pet crystal self-test PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored pet crystal 0 2 1 0" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
@@ -291,6 +310,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-battle-screen.png \
   && test -s tmp/offline-test/offline-progress-screen.png \
   && test -s tmp/offline-test/offline-reload-screen.png \
+  && test -s tmp/offline-test/offline-tools-menu.png \
+  && test -s tmp/offline-test/offline-final-reload-screen.png \
   && test -s tmp/offline-test/offline-task-daily.png \
   && test -s tmp/offline-test/offline-task-daily-claimed.png \
   && test -s tmp/offline-test/offline-task-weekly.png \
