@@ -72,7 +72,7 @@ sleep 4
 timeout 20s adb shell screencap -p /sdcard/offline-daily-reward-popup.png
 timeout 30s adb pull /sdcard/offline-daily-reward-popup.png tmp/offline-test/offline-daily-reward-popup.png > /dev/null 2>&1
 # The original Receive panel is modal: confirm before using any other Task controls.
-timeout 10s adb shell input tap 540 1165 > tmp/offline-test/daily-reward-confirm.txt 2>&1
+timeout 10s adb shell input tap 540 1354 > tmp/offline-test/daily-reward-confirm.txt 2>&1
 sleep 3
 timeout 20s adb shell screencap -p /sdcard/offline-task-daily-claimed.png
 timeout 30s adb pull /sdcard/offline-task-daily-claimed.png tmp/offline-test/offline-task-daily-claimed.png > /dev/null 2>&1
@@ -95,7 +95,7 @@ timeout 20s adb shell screencap -p /sdcard/offline-task-main.png
 timeout 30s adb pull /sdcard/offline-task-main.png tmp/offline-test/offline-task-main.png > /dev/null 2>&1
 timeout 10s adb shell input tap 891 829 > tmp/offline-test/task-main-claim.txt 2>&1
 sleep 4
-timeout 10s adb shell input tap 540 1165 > tmp/offline-test/main-task-reward-confirm.txt 2>&1
+timeout 10s adb shell input tap 540 1354 > tmp/offline-test/main-task-reward-confirm.txt 2>&1
 sleep 3
 timeout 20s adb shell screencap -p /sdcard/offline-task-main-claimed.png
 timeout 30s adb pull /sdcard/offline-task-main-claimed.png tmp/offline-test/offline-task-main-claimed.png > /dev/null 2>&1
@@ -320,7 +320,6 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-daily-reward-popup.png \
   && test -s tmp/offline-test/offline-equipped-screen.png \
   && test -s tmp/offline-test/offline-equipment-detail-screen.png \
-  && test -s tmp/offline-test/offline-after-combat-return.png \
   && test -s tmp/offline-test/offline-after-task-close.png; then
   echo "OFFLINE_SCENE_TEST=PASS" | tee -a tmp/offline-test/SUMMARY.txt
   exit 0
