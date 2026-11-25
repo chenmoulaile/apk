@@ -184,6 +184,8 @@ if [ "$SEEN_STAGE4" -eq 1 ]; then
   done
 fi
 if [ "$SEEN_STAGE5" -eq 1 ]; then
+  # The stage-5 response starts its battle animation; wait for the result panel.
+  sleep 26
   timeout 10s adb shell input tap 295 1675 > tmp/offline-test/exit-main-challenge.txt 2>&1
   sleep 5
   timeout 20s adb shell screencap -p /sdcard/offline-main-after-challenge.png
