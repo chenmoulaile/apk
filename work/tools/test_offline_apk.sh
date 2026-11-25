@@ -204,9 +204,9 @@ timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-menu-open.txt 2
 sleep 2
 timeout 20s adb shell screencap -p /sdcard/offline-tools-menu.png
 timeout 30s adb pull /sdcard/offline-tools-menu.png tmp/offline-test/offline-tools-menu.png > /dev/null 2>&1
-timeout 10s adb shell input tap 150 260 > tmp/offline-test/offline-item-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 445 > tmp/offline-test/offline-item-self-test.txt 2>&1
 sleep 5
-timeout 10s adb shell input tap 150 320 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
+timeout 10s adb shell input tap 150 545 > tmp/offline-test/offline-crystal-self-test.txt 2>&1
 sleep 5
 # Cold-restart again to prove the item and crystal changes themselves survive.
 adb shell am force-stop com.ruirui.cjjlq
