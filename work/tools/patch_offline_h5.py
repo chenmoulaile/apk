@@ -1610,6 +1610,9 @@ HOOK = r"""
       try{
         ensure();
         if(typeof mdl!=="undefined"&&mdl.Task&&mdl.Task.Entry){
+          var tabCount=3;
+          try{if(util.UOther.getOpen(93).flag&&!DM.isLimitCity)tabCount=4;}catch(_){}
+          log("local task panel tabs",tabCount);
           mdl.Task.Entry.show(Number(tab)||1);
           log("local task panel opened",Number(tab)||1);
           return true;
