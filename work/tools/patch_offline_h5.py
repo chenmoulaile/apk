@@ -1253,6 +1253,16 @@ HOOK = r"""
     if(!info.slotInfo||typeof info.slotInfo!=="object")info.slotInfo={};
     if(!info.maxLevelGenIdMap||typeof info.maxLevelGenIdMap!=="object")info.maxLevelGenIdMap={};
     if(info.type!==1)info.type=0;
+    var nowSeconds=Math.floor(Date.now()/1000);
+    Object.keys(info.slotInfo).forEach(function(key){
+      var slot=info.slotInfo[key];
+      if(slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.CoolDown)&&
+         Number(slot.coolEndTime||0)<=nowSeconds){
+        slot.slotType=Number(rp.PetCrystalSlot.Type.Unlock);
+        slot.genId=0;slot.coolEndTime=0;
+        log("local PetCrystal cooldown ended",Number(key));
+      }
+    });
     var pets=localPetCrystalOwnedPets(u).slice().sort(function(a,b){
       var la=Number(a.level)||1,lb=Number(b.level)||1;
       if(la!==lb)return lb-la;
@@ -1411,10 +1421,15 @@ HOOK = r"""
     }
     var pet=localCrystalFindPet(u,slot.genId);
     if(pet){pet.crystalLevel=0;localCrystalSyncPet(u,pet);}
-    slot.slotType=Number(rp.PetCrystalSlot.Type.Unlock);slot.genId=0;slot.coolEndTime=0;
+    var sharedConf=null;
+    try{sharedConf=GC.G().SharedCrystalCon.getDes(1);}catch(e){log("local crystal cooldown config",e);}
+    var cooldownSeconds=Math.max(1,Number(sharedConf&&sharedConf.slotCdTime)||28800);
+    slot.slotType=Number(rp.PetCrystalSlot.Type.CoolDown);
+    slot.coolEndTime=Math.floor(Date.now()/1000)+cooldownSeconds;
     r.ret=0;r.info=info;
     localNotifyInventoryChanged(u,false);save();
-    log("local PetCrystalGet",index,Number(pet&&pet.genId)||0);
+    log("local PetCrystalGet",index,Number(pet&&pet.genId)||0,
+      "cooldown",cooldownSeconds,"until",slot.coolEndTime);
     return r;
   }
   function makeOfflinePetCrystalUnlockRsp(req,r){
@@ -2304,27 +2319,41 @@ HOOK = r"""
     selfTestPetCrystal:function(){
       ensure();
       var u=DM.G().userInfo,info=localRefreshPetCrystal(u),
-        beforeCash=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash||0),
-        already=info.slotInfo&&info.slotInfo[7];
+        money=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo()),
+        beforeCash=Number(money.cash||0),already=info.slotInfo&&info.slotInfo[7];
       if(already&&Number(already.slotType)>0){
         log("local pet crystal self-test SKIP slot7 already unlocked");
         return {pass:true,skipped:true};
       }
-      // Slot 7's actual configuration costs 200 cash and 30 of item 1001004.
+      // Slot 7 costs 200 cash and 30 item 1001004 in the archived table.
       addLocalItem(1001004,30);
       var beforeStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001004]&&u.itemPackInfo.idMap[1001004].count||0);
-      var req=new rp.PetCrystalUnlockReq();req.index=7;req.costType=0;
-      var rsp=makeOfflinePetCrystalUnlockRsp(req,new rp.PetCrystalUnlockRsp());
-      var slot=info.slotInfo&&info.slotInfo[7],
-        afterCash=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash||0),
+      var unlockReq=new rp.PetCrystalUnlockReq();unlockReq.index=7;unlockReq.costType=0;
+      var unlock=makeOfflinePetCrystalUnlockRsp(unlockReq,new rp.PetCrystalUnlockRsp());
+      var slot=info.slotInfo&&info.slotInfo[7];
+      var pet=u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet;
+      var placed=null,removed=null,cleared=null;
+      if(Number(unlock.ret)===0&&pet&&Number(pet.genId)>0){
+        var setReq=new rp.PetCrystalSetReq();setReq.index=7;setReq.genId=Number(pet.genId);
+        placed=makeOfflinePetCrystalSetRsp(setReq,new rp.PetCrystalSetRsp());
+        var getReq=new rp.PetCrystalGetReq();getReq.index=7;
+        removed=makeOfflinePetCrystalGetRsp(getReq,new rp.PetCrystalGetRsp());
+        var buyReq=new rp.PetCrystalBuyCoolTimeReq();buyReq.index=7;
+        cleared=makeOfflinePetCrystalBuyCoolTimeRsp(buyReq,new rp.PetCrystalBuyCoolTimeRsp());
+      }
+      var afterCash=Number(money.cash||0),
         afterStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001004]&&u.itemPackInfo.idMap[1001004].count||0);
-      var ok=Number(rsp.ret)===0&&slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.Unlock)&&
-        afterCash===beforeCash-200&&beforeStones>=30&&afterStones===beforeStones-30;
-      log("local pet crystal self-test",ok?"PASS":"FAIL","ret",rsp.ret,
-        "slot7",Number(slot&&slot.slotType)||0,"cash",beforeCash,"->",afterCash,
-        "stones",beforeStones,"->",afterStones);
+      var ok=Number(unlock.ret)===0&&Number(placed&&placed.ret)===0&&
+        Number(removed&&removed.ret)===0&&Number(cleared&&cleared.ret)===0&&
+        afterCash===beforeCash-200-96&&beforeStones>=30&&afterStones===beforeStones-30&&
+        slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.Unlock);
+      log("local pet crystal self-test",ok?"PASS":"FAIL",
+        "unlock",unlock.ret,"set",placed&&placed.ret,"get",removed&&removed.ret,
+        "cooldownClear",cleared&&cleared.ret,"slot7",Number(slot&&slot.slotType)||0,
+        "cash",beforeCash,"->",afterCash,"stones",beforeStones,"->",afterStones);
       save();
-      return {pass:ok,ret:rsp.ret,slot:Number(slot&&slot.slotType)||0,cash:afterCash};
+      return {pass:ok,unlock:unlock.ret,set:placed&&placed.ret,get:removed&&removed.ret,
+        clear:cleared&&cleared.ret,cash:afterCash,stones:afterStones};
     },
     selfTestItemUse:function(){
       ensure();
