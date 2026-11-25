@@ -1219,7 +1219,277 @@ HOOK = r"""
     log("local mixture batch complete",plans.length,totalConsumed);
     return r;
   }
-  function makeOfflineUseItemRsp(req,r){
+  function localPetCrystalOwnedPets(u){
+    var out=[],seen={};
+    function add(p){
+      if(!p||!Number(p.id)||!Number(p.genId))return;
+      var key=String(p.genId);
+      if(seen[key])return;
+      seen[key]=true;out.push(p);
+    }
+    (u&&u.petPackInfo&&u.petPackInfo.packArray||[]).forEach(function(node){add(node&&node.pet);});
+    (u&&u.petStorageInfo&&u.petStorageInfo.petArray||[]).forEach(add);
+    return out;
+  }
+  function localPetStarLevelLimit(pet){
+    var cfg=null,star=null;
+    try{
+      cfg=GC.G().spiritConfig.getDes(Number(pet&&pet.id));
+      GC.G().PetStarConf.getDesList().some(function(x){
+        if(cfg&&Number(x.templateId)===Number(cfg.starTemplateId)&&
+           Number(x.star)===Number(pet&&pet.starLevel||cfg.quality)){
+          star=x;return true;
+        }
+        return false;
+      });
+    }catch(e){log("local crystal star limit lookup",e);}
+    return Math.max(1,Number(star&&star.levelLimit)||100);
+  }
+  function localRefreshPetCrystal(u){
+    u=u||current;
+    if(!u)return null;
+    if(!u.petCrystalInfo)u.petCrystalInfo=new rp.PetCrystal();
+    var info=u.petCrystalInfo;
+    if(!info.slotInfo||typeof info.slotInfo!=="object")info.slotInfo={};
+    if(!info.maxLevelGenIdMap||typeof info.maxLevelGenIdMap!=="object")info.maxLevelGenIdMap={};
+    if(info.type!==1)info.type=0;
+    var pets=localPetCrystalOwnedPets(u).slice().sort(function(a,b){
+      var la=Number(a.level)||1,lb=Number(b.level)||1;
+      if(la!==lb)return lb-la;
+      return (Number(b.fightScore)||0)-(Number(a.fightScore)||0);
+    });
+    var top=pets.slice(0,6),map={};
+    top.forEach(function(p){
+      map[String(p.genId)]=Number(p.level)||1;
+    });
+    info.maxLevelGenIdMap=map;
+    if(info.type===0){
+      info.crystalLevel=top.length?Math.min.apply(null,top.map(function(p){return Number(p.level)||1;})):1;
+      info.curCrystalLevel=info.crystalLevel;
+      info.maxCrystalLevel=240;
+    }else{
+      info.crystalLevel=Math.max(240,Number(info.crystalLevel)||240);
+      info.curCrystalLevel=info.crystalLevel;
+      var ancestors={};
+      pets.forEach(function(p){
+        if(Number(p.starLevel||0)<12)return;
+        var cfg=null;try{cfg=GC.G().spiritConfig.getDes(Number(p.id));}catch(_){}
+        var ancestor=Number(cfg&&cfg.ancestor)||Number(p.id);
+        if(ancestor>0)ancestors[String(ancestor)]=true;
+      });
+      info.maxCrystalLevel=Math.min(500,240+Object.keys(ancestors).length*5);
+    }
+    return info;
+  }
+  function localCrystalFindPet(u,genId){
+    genId=String(genId);
+    var packs=u&&u.petPackInfo&&u.petPackInfo.packArray||[];
+    for(var i=0;i<packs.length;i++){
+      var p=packs[i]&&packs[i].pet;
+      if(p&&String(p.genId)===genId)return p;
+    }
+    var stored=u&&u.petStorageInfo&&u.petStorageInfo.petArray||[];
+    for(var j=0;j<stored.length;j++)if(stored[j]&&String(stored[j].genId)===genId)return stored[j];
+    return null;
+  }
+  function localCrystalSyncPet(u,pet){
+    if(!u||!pet)return;
+    var packs=u.petPackInfo&&u.petPackInfo.packArray||[];
+    packs.forEach(function(node){if(node&&node.pet&&String(node.pet.genId)===String(pet.genId))node.pet=pet;});
+    var stored=u.petStorageInfo&&u.petStorageInfo.petArray||[];
+    stored.forEach(function(entry){if(entry&&String(entry.genId)===String(pet.genId))Object.keys(pet).forEach(function(k){entry[k]=pet[k];});});
+  }
+  function localCrystalCostInfo(u,actions){
+    var money=u&&u.baseInfo&&u.baseInfo.moneyInfo||new rp.MoneyInfo();
+    var points=u&&u.baseInfo&&u.baseInfo.newPointItemMap||{};
+    var requirements={items:{},gold:0,diamond:0,cash:0,points:{}};
+    (actions||[]).forEach(function(a){
+      var type=Number(a&&a.type),p=a&&a.params||[a&&a.para1,a&&a.para2],
+        id=Number(p[0])||0,n=Number(p[1])||0;
+      if(type===Number(rp.Action.ActionTye.ADD_GOLD))requirements.gold+=id;
+      else if(type===Number(rp.Action.ActionTye.ADD_DIAMOND))requirements.diamond+=id;
+      else if(type===Number(rp.Action.ActionTye.ADD_CASH))requirements.cash+=id;
+      else if(type===Number(rp.Action.ActionTye.ADD_POINT_ITEM)){
+        if(id===1)requirements.cash+=n;
+        else if(id===2)requirements.diamond+=n;
+        else if(id===3)requirements.gold+=n;
+        else requirements.points[id]=(requirements.points[id]||0)+n;
+      }else if(type===Number(rp.Action.ActionTye.DEL_ITEM_BY_ID)){
+        requirements.items[id]=(requirements.items[id]||0)+n;
+      }else if(type===Number(rp.Action.ActionTye.DEL_ITEM_BY_SID)){
+        requirements.itemsBySid[String(id)]=(requirements.itemsBySid[String(id)]||0)+1;
+      }else{
+        requirements.invalid=true;
+      }
+    });
+    var ok=Number(money.gold||0)>=requirements.gold&&
+      Number(money.diamond||0)>=requirements.diamond&&
+      Number(money.cash||0)>=requirements.cash;
+    Object.keys(requirements.points).forEach(function(id){
+      if(Number(points[id]||0)<requirements.points[id])ok=false;
+    });
+    Object.keys(requirements.items).forEach(function(id){
+      var item=u.itemPackInfo&&u.itemPackInfo.idMap&&u.itemPackInfo.idMap[id];
+      if(Number(item&&item.count||0)<requirements.items[id])ok=false;
+    });
+    if(requirements.invalid)ok=false;
+    return {ok:ok,requirements:requirements};
+  }
+  function localCrystalConsumeCosts(u,requirements){
+    if(!u||!u.baseInfo||!requirements)return false;
+    var money=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo());
+    var points=u.baseInfo.newPointItemMap||(u.baseInfo.newPointItemMap={});
+    var r=requirements;
+    if(Number(money.gold||0)<r.gold||Number(money.diamond||0)<r.diamond||Number(money.cash||0)<r.cash)return false;
+    Object.keys(r.points||{}).forEach(function(id){
+      if(Number(points[id]||0)<r.points[id])throw new Error("not enough point item "+id);
+    });
+    Object.keys(r.items||{}).forEach(function(id){
+      var item=u.itemPackInfo&&u.itemPackInfo.idMap&&u.itemPackInfo.idMap[id];
+      if(Number(item&&item.count||0)<r.items[id])throw new Error("not enough item "+id);
+    });
+    money.gold=long(Number(money.gold||0)-r.gold);
+    money.diamond=Number(money.diamond||0)-r.diamond;
+    money.cash=Number(money.cash||0)-r.cash;
+    Object.keys(r.points||{}).forEach(function(id){points[id]=Number(points[id]||0)-r.points[id];});
+    Object.keys(r.items||{}).forEach(function(id){
+      var item=u.itemPackInfo.idMap[id];
+      item.count=Number(item.count||0)-r.items[id];
+      if(item.count<=0)delete u.itemPackInfo.idMap[id];
+    });
+    refreshLocalItemIndexes(u);
+    return true;
+  }
+  function localCrystalMaxLevel(u){
+    var ancestors={};
+    localPetCrystalOwnedPets(u).forEach(function(p){
+      if(Number(p.starLevel||0)<12)return;
+      var cfg=null;try{cfg=GC.G().spiritConfig.getDes(Number(p.id));}catch(_){}
+      var ancestor=Number(cfg&&cfg.ancestor)||Number(p.id);
+      if(ancestor>0)ancestors[String(ancestor)]=true;
+    });
+    return Math.min(500,240+Object.keys(ancestors).length*5);
+  }
+  function makeOfflinePetCrystalInfoRsp(r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;r.ret=0;r.info=localRefreshPetCrystal(u);
+    log("local PetCrystalInfoRsp",r.info.type,r.info.crystalLevel,
+      r.info.maxCrystalLevel,Object.keys(r.info.slotInfo||{}).length);
+    return r;
+  }
+  function makeOfflinePetCrystalSetRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;var info=localRefreshPetCrystal(u),index=Number(req&&req.index),
+      genId=Number(req&&req.genId)||0,slot=info&&info.slotInfo&&info.slotInfo[index],
+      pet=genId&&localCrystalFindPet(u,genId);
+    if(!info||!Number.isInteger(index)||index<1||index>60||!slot||
+       Number(slot.slotType)!==Number(rp.PetCrystalSlot.Type.Unlock)||!pet){
+      r.ret=1;log("local PetCrystalSet rejected",index,genId,slot&&slot.slotType);return r;
+    }
+    var duplicate=false;
+    Object.keys(info.slotInfo).forEach(function(key){
+      if(Number(key)!==index&&info.slotInfo[key]&&Number(info.slotInfo[key].genId)===genId)duplicate=true;
+    });
+    if(duplicate){r.ret=1;log("local PetCrystalSet duplicate pet",genId);return r;}
+    slot.slotType=Number(rp.PetCrystalSlot.Type.Used);slot.genId=genId;slot.coolEndTime=0;
+    var maxLevel=localPetStarLevelLimit(pet);
+    pet.crystalLevel=Math.min(Number(info.crystalLevel)||1,maxLevel);
+    localCrystalSyncPet(u,pet);
+    r.ret=0;r.info=info;
+    localNotifyInventoryChanged(u,false);save();
+    log("local PetCrystalSet",index,genId,"crystalLevel",pet.crystalLevel);
+    return r;
+  }
+  function makeOfflinePetCrystalGetRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;var info=localRefreshPetCrystal(u),index=Number(req&&req.index),
+      slot=info&&info.slotInfo&&info.slotInfo[index];
+    if(!info||!Number.isInteger(index)||!slot||Number(slot.slotType)!==Number(rp.PetCrystalSlot.Type.Used)){
+      r.ret=1;log("local PetCrystalGet rejected",index,slot&&slot.slotType);return r;
+    }
+    var pet=localCrystalFindPet(u,slot.genId);
+    if(pet){pet.crystalLevel=0;localCrystalSyncPet(u,pet);}
+    slot.slotType=Number(rp.PetCrystalSlot.Type.Unlock);slot.genId=0;slot.coolEndTime=0;
+    r.ret=0;r.info=info;
+    localNotifyInventoryChanged(u,false);save();
+    log("local PetCrystalGet",index,Number(pet&&pet.genId)||0);
+    return r;
+  }
+  function makeOfflinePetCrystalUnlockRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;var info=localRefreshPetCrystal(u),index=Number(req&&req.index),
+      costType=Number(req&&req.costType),cfg=null,slot=info&&info.slotInfo&&info.slotInfo[index];
+    if(!info||!Number.isInteger(index)||index<7||index>60||!isFinite(costType)||
+       costType<0||costType>1||(slot&&Number(slot.slotType)>0)){
+      r.ret=1;log("local PetCrystalUnlock rejected",index,costType);return r;
+    }
+    try{cfg=GC.G().PET_CRYSTAL_SLOT.getDes(index);}catch(_){}
+    var actions=cfg&&cfg.actionArr||[],action=actions[costType];
+    if(!action){r.ret=1;log("local PetCrystalUnlock config missing",index,costType);return r;}
+    var plan=localCrystalCostInfo(u,[localNormalizeRewardAction(action)]);
+    if(!plan.ok){r.ret=1;log("local PetCrystalUnlock cost missing",index,costType);return r;}
+    try{localCrystalConsumeCosts(u,plan.requirements);}catch(e){r.ret=1;log("local PetCrystalUnlock cost error",e);return r;}
+    info.slotInfo[index]=new rp.PetCrystalSlot();
+    info.slotInfo[index].slotType=Number(rp.PetCrystalSlot.Type.Unlock);
+    info.slotInfo[index].genId=0;info.slotInfo[index].coolEndTime=0;
+    r.ret=0;r.info=info;
+    localNotifyInventoryChanged(u,false);save();
+    log("local PetCrystalUnlock",index,costType);
+    return r;
+  }
+  function makeOfflinePetCrystalBuyCoolTimeRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;var info=localRefreshPetCrystal(u),index=Number(req&&req.index),
+      slot=info&&info.slotInfo&&info.slotInfo[index],now=Math.floor(Date.now()/1000);
+    if(!info||!slot||Number(slot.slotType)!==Number(rp.PetCrystalSlot.Type.CoolDown)){
+      r.ret=1;return r;
+    }
+    var cost=Math.ceil(Math.max(0,Number(slot.coolEndTime||0)-now)/300),
+      money=u.baseInfo.moneyInfo||(u.baseInfo.moneyInfo=new rp.MoneyInfo());
+    if(Number(money.cash||0)<cost){r.ret=1;log("local PetCrystalBuyCoolTime missing cash",cost);return r;}
+    money.cash=Number(money.cash||0)-cost;
+    slot.slotType=Number(rp.PetCrystalSlot.Type.Unlock);slot.coolEndTime=0;slot.genId=0;
+    r.ret=0;r.info=info;localNotifyInventoryChanged(u,false);save();
+    log("local PetCrystalBuyCoolTime",index,cost);
+    return r;
+  }
+  function makeOfflinePetCrystalBreakRsp(r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u||!u.baseInfo){r.ret=1;return r;}
+    current=u;var info=localRefreshPetCrystal(u);
+    if(info.type===0){
+      var top=localPetCrystalOwnedPets(u).slice().sort(function(a,b){return (Number(b.level)||1)-(Number(a.level)||1);}).slice(0,6);
+      var minLevel=top.length>=6?Math.min.apply(null,top.map(function(p){return Number(p.level)||1;})):0;
+      if(top.length<6||minLevel<240){
+        r.ret=1;log("local PetCrystalBreak blocked",top.length,minLevel);return r;
+      }
+      info.type=1;info.crystalLevel=240;info.curCrystalLevel=240;
+      info.maxCrystalLevel=localCrystalMaxLevel(u);
+      if(info.maxCrystalLevel<240)info.maxCrystalLevel=240;
+      log("local PetCrystalBreak unlocked",info.crystalLevel,info.maxCrystalLevel);
+    }else{
+      var level=Number(info.crystalLevel)||240,
+        max=localCrystalMaxLevel(u),cfg=null;
+      info.maxCrystalLevel=Math.max(240,max);
+      if(level>=info.maxCrystalLevel){r.ret=1;log("local PetCrystalBreak max level",level,info.maxCrystalLevel);return r;}
+      try{cfg=GC.G().PET_CRYSTAL_LEVEL_UP.getDes(level);}catch(_){}
+      if(!cfg||!Array.isArray(cfg.actionArr)){r.ret=1;log("local PetCrystalBreak config missing",level);return r;}
+      var plan=localCrystalCostInfo(u,cfg.actionArr);
+      if(!plan.ok){r.ret=1;log("local PetCrystalBreak cost missing",level);return r;}
+      try{localCrystalConsumeCosts(u,plan.requirements);}catch(e){r.ret=1;log("local PetCrystalBreak cost error",e);return r;}
+      info.crystalLevel=level+1;info.curCrystalLevel=level+1;
+      log("local PetCrystalBreak level up",level,"->",info.crystalLevel);
+    }
+    r.ret=0;r.info=info;
+    localNotifyInventoryChanged(u,false);save();
+    return r;
+  }
+    function makeOfflineUseItemRsp(req,r){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
     if(!u||!u.baseInfo){r.ret=1;return r;}
     current=u;normalizeLocalEquipmentInventory(u);
@@ -1889,6 +2159,24 @@ HOOK = r"""
         r.evaluteDefenseAbs=0;r.evaluteDefensePersent=0;
         log("local pet attributes calculated",petIndex,
           "equipment",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);
+      }
+      else if(Resp===rp.PetCrystalInfoRsp){
+        r=makeOfflinePetCrystalInfoRsp(r);
+      }
+      else if(Resp===rp.PetCrystalSetRsp){
+        r=makeOfflinePetCrystalSetRsp(req,r);
+      }
+      else if(Resp===rp.PetCrystalGetRsp){
+        r=makeOfflinePetCrystalGetRsp(req,r);
+      }
+      else if(Resp===rp.PetCrystalUnlockRsp){
+        r=makeOfflinePetCrystalUnlockRsp(req,r);
+      }
+      else if(Resp===rp.PetCrystalBuyCoolTimeRsp){
+        r=makeOfflinePetCrystalBuyCoolTimeRsp(req,r);
+      }
+      else if(Resp===rp.PetCrystalBreakRsp){
+        r=makeOfflinePetCrystalBreakRsp(r);
       }
       else if(Resp===rp.PetGrowupExpRsp){
         r=makeOfflinePetGrowupRsp(req,r);
