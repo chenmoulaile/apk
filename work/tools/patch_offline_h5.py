@@ -2310,13 +2310,19 @@ HOOK = r"""
         log("local pet crystal self-test SKIP slot7 already unlocked");
         return {pass:true,skipped:true};
       }
+      // Slot 7's actual configuration costs 200 cash and 30 of item 1001004.
+      addLocalItem(1001004,30);
+      var beforeStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001004]&&u.itemPackInfo.idMap[1001004].count||0);
       var req=new rp.PetCrystalUnlockReq();req.index=7;req.costType=0;
       var rsp=makeOfflinePetCrystalUnlockRsp(req,new rp.PetCrystalUnlockRsp());
       var slot=info.slotInfo&&info.slotInfo[7],
-        afterCash=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash||0);
-      var ok=Number(rsp.ret)===0&&slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.Unlock)&&afterCash===beforeCash-200;
+        afterCash=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash||0),
+        afterStones=Number(u.itemPackInfo.idMap&&u.itemPackInfo.idMap[1001004]&&u.itemPackInfo.idMap[1001004].count||0);
+      var ok=Number(rsp.ret)===0&&slot&&Number(slot.slotType)===Number(rp.PetCrystalSlot.Type.Unlock)&&
+        afterCash===beforeCash-200&&beforeStones>=30&&afterStones===beforeStones-30;
       log("local pet crystal self-test",ok?"PASS":"FAIL","ret",rsp.ret,
-        "slot7",Number(slot&&slot.slotType)||0,"cash",beforeCash,"->",afterCash);
+        "slot7",Number(slot&&slot.slotType)||0,"cash",beforeCash,"->",afterCash,
+        "stones",beforeStones,"->",afterStones);
       save();
       return {pass:ok,ret:rsp.ret,slot:Number(slot&&slot.slotType)||0,cash:afterCash};
     },
@@ -2383,9 +2389,9 @@ HOOK = r"""
 
 OVERLAY = """
 <style id="offline-menu-style">
-#offline-menu-button{position:fixed;z-index:2147483646;right:100px;top:5px;padding:4px 6px;border-radius:8px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:11px sans-serif}
+#offline-menu-button{position:fixed;z-index:2147483646;left:10px;top:5px;padding:4px 6px;border-radius:8px;background:rgba(17,25,46,.9);border:1px solid #64c8ff;color:#fff;font:11px sans-serif}
 #offline-task-button{position:fixed;z-index:2147483646;right:10px;top:5px;padding:4px 8px;border-radius:8px;background:rgba(17,25,46,.92);border:1px solid #ffe08a;color:#fff;font:12px sans-serif}
-#offline-menu-panel{position:fixed;z-index:2147483647;right:10px;top:42px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
+#offline-menu-panel{position:fixed;z-index:2147483647;left:10px;top:42px;width:220px;padding:12px;border-radius:12px;background:rgba(12,18,36,.97);border:1px solid #64c8ff;color:#fff;font:14px sans-serif;display:none}
 #offline-menu-panel h3{margin:0 0 8px;font-size:16px;color:#8de2ff}
 #offline-menu-panel .stat{font-size:12px;line-height:1.6;margin-bottom:8px;color:#d6edff}
 #offline-menu-panel button{width:100%;margin:4px 0;padding:8px;border:0;border-radius:8px;background:#287bb6;color:#fff;font-size:13px}
