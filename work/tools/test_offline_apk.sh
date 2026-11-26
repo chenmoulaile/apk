@@ -293,14 +293,13 @@ timeout 30s adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUN
 sleep 30
 timeout 20s adb shell screencap -p /sdcard/offline-final-reload-screen.png
 timeout 30s adb pull /sdcard/offline-final-reload-screen.png tmp/offline-test/offline-final-reload-screen.png > /dev/null 2>&1
-# Exercise the actual unlocked Life Tree entry from the Town screen after restoring the test profile.
-timeout 10s adb shell input tap 80 50 > tmp/offline-test/life-tree-tools-close.txt 2>&1
-sleep 3
+# The offline debug menu is closed after cold restart. Open Town and then tap
+# the Life Tree building (the original TownUI btnTree / Doctor Lab).
 timeout 10s adb shell input tap 1000 1825 > tmp/offline-test/life-tree-town-open.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-town-screen.png
 timeout 30s adb pull /sdcard/offline-town-screen.png tmp/offline-test/offline-town-screen.png > /dev/null 2>&1
-timeout 10s adb shell input tap 190 1350 > tmp/offline-test/life-tree-real-open.txt 2>&1
+timeout 10s adb shell input tap 750 1300 > tmp/offline-test/life-tree-real-open.txt 2>&1
 sleep 10
 timeout 20s adb shell screencap -p /sdcard/offline-life-tree-real-screen.png
 timeout 30s adb pull /sdcard/offline-life-tree-real-screen.png tmp/offline-test/offline-life-tree-real-screen.png > /dev/null 2>&1
