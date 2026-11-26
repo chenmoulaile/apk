@@ -151,6 +151,7 @@ HOOK = r"""
     if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
     if(!u.activityInfo.trialTowerInfo)u.activityInfo.trialTowerInfo=new rp.TrialTowerInfo();
     if(!u.activityInfo.trialTowerInfo.levels)u.activityInfo.trialTowerInfo.levels={};
+    if(!u.activityInfo.lifeTreeInfo)u.activityInfo.lifeTreeInfo=new rp.LifeTreeInfo();
     if(!u.activityInfo.divinationTrialInfo)u.activityInfo.divinationTrialInfo=new rp.DivinationTrialInfo();
     if(!u.activityInfo.divinationTrialInfo.tasks)u.activityInfo.divinationTrialInfo.tasks={};
     if(!u.extInfo)u.extInfo=new rp.UserExtInfo();
@@ -317,22 +318,21 @@ HOOK = r"""
   }
   function normalizeOfflineLifeTree(u){
     if(!u)return null;
-    if(!u.lifeTreeInfo)u.lifeTreeInfo=new rp.LifeTreeInfo();
-    if(!u.lifeTreeInfo.levels)u.lifeTreeInfo.levels={};
-    if(!u.lifeTreeInfo.ancestorStars)u.lifeTreeInfo.ancestorStars={};
-    for(var type=0;type<=5;type++){
-      var level=Math.max(0,Math.floor(Number(u.lifeTreeInfo.levels[type])||0));
-      u.lifeTreeInfo.levels[type]=level;
-    }
+    if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
+    if(!u.activityInfo.lifeTreeInfo)u.activityInfo.lifeTreeInfo=new rp.LifeTreeInfo();
+    var info=u.activityInfo.lifeTreeInfo;
+    if(!info.levels)info.levels={};
+    if(!info.ancestorStars)info.ancestorStars={};
+    for(var type=0;type<=5;type++)
+      info.levels[type]=Math.max(0,Math.floor(Number(info.levels[type])||0));
     function recordPet(pet){
       if(!pet||!Number(pet.id))return;
       var id=String(Number(pet.id)),star=Math.max(0,Number(pet.starLevel)||0);
-      if(star>Number(u.lifeTreeInfo.ancestorStars[id]||0))
-        u.lifeTreeInfo.ancestorStars[id]=star;
+      if(star>Number(info.ancestorStars[id]||0))info.ancestorStars[id]=star;
     }
     (u.petStorageInfo&&u.petStorageInfo.petArray||[]).forEach(recordPet);
     (u.petPackInfo&&u.petPackInfo.packArray||[]).forEach(function(node){recordPet(node&&node.pet);});
-    return u.lifeTreeInfo;
+    return info;
   }
   function localLifeTreePassivePercent(type,level){
     var cfg=offlineTaskConfig("LIFE_TREE_CONF",String(type)+"_"+String(level));
@@ -358,7 +358,9 @@ HOOK = r"""
       else if(type===13){bonus.attack+=value;bonus.attackPercent=(bonus.attackPercent||0)+pct;}
       else if(type===14){bonus.defense+=value;bonus.defensePercent=(bonus.defensePercent||0)+pct;}
     });
-    var role=Math.floor(Number(spiritCfg&&spiritCfg.actType)||0);
+    // SpiritDesHandle maps the raw actType field to normalized .type.
+    var role=Math.floor(Number(spiritCfg&&spiritCfg.type!=null?
+      spiritCfg.type:spiritCfg.actType)||0);
     bonus.role=role;
     if(role>=1&&role<=5){
       var roleLevel=Number(info.levels[role])||0,
@@ -2762,7 +2764,7 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       newStoreInfo:"NewStoreInfo",legendaryChallengeInfo:"LegendaryChallengeInfo",offerRewardInfo:"OfferRewardInfo",
       eliteCallInfo:"EliteCallInfo",limitTimeAdvent:"LimitTimeAdventInfo",weekCircles:"UserWeekCircleInfo",
       newVersionFixInfo:"NewVersionFixInfo",newTaskInfo:"DBNewTaskInfo",userDateAttrInfo:"UserDataAttrInfo",
-      naturePowerInfo:"NaturePowerInfo",lifeTreeInfo:"LifeTreeInfo",
+      naturePowerInfo:"NaturePowerInfo",
       collectCardInfo:"CardCollectInfo",checkInfo2:"CheckInInfo2",
       checkInfoCycle:"CheckInInfo2",mibaoPackInfo:"MibaoPackInfo",mibaoLotteryInfo:"MibaoLotteryInfo"
     };
@@ -3384,6 +3386,12 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(controlBonus.damageCapPercent)>=100&&
         Number(defenseBonus.regenPercent)>=4&&
         Number(healerBonus.teamAtkDefPercent)>=1;
+      log("local life tree self-test attributes",
+        Number(petBonus.hp)||0,Number(petBonus.attack)||0,Number(petBonus.defense)||0,
+        Number(petBonus.hpPercent)||0,
+        Number(controlBonus.damageCapPercent)||0,
+        Number(defenseBonus.regenPercent)||0,
+        Number(healerBonus.teamAtkDefPercent)||0);
       var oldTrainerLevel=Number(u.baseInfo.level)||1;
       u.baseInfo.level=Math.max(50,oldTrainerLevel);
       var ok=overviewOk&&basePass&&rolePass&&Number(stale.ret)!==0&&
