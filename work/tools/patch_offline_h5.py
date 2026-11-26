@@ -123,11 +123,15 @@ HOOK = r"""
   var offlineToday=offlineDateKey(),offlineWeek=offlineWeekKey();
   var offlineDayReset=offlineTaskMeta.dayKey!==offlineToday;
   var offlineWeekReset=offlineTaskMeta.weekKey!==offlineWeek;
-  if(offlineDayReset){offlineTaskMeta.dayKey=offlineToday;offlineTaskMeta.dailyCounters={};offlineTaskMeta.lastHangupTime=Math.floor(Date.now()/1000)-3600;}
+  if(offlineDayReset){offlineTaskMeta.dayKey=offlineToday;offlineTaskMeta.dailyCounters={};}
   if(offlineWeekReset){offlineTaskMeta.weekKey=offlineWeek;offlineTaskMeta.weeklyCounters={};}
   if(!offlineTaskMeta.dailyCounters)offlineTaskMeta.dailyCounters={};
   if(!offlineTaskMeta.weeklyCounters)offlineTaskMeta.weeklyCounters={};
   if(!offlineTaskMeta.lastHangupTime)offlineTaskMeta.lastHangupTime=Math.floor(Date.now()/1000)-3600;
+  var expectedHangupRestore=Number(offlineTaskMeta.expectedHangupRestoreTime)||0;
+  var hangupRestoredAfterDayReset=offlineDayReset&&expectedHangupRestore>0&&
+    Number(offlineTaskMeta.lastHangupTime)===expectedHangupRestore&&
+    Number(offlineTaskMeta.dailyCounters[52]||0)===0;
   var quickCombatUsed=offlineDayReset?0:(Number(saved.quickCombatUsed)||0);
   var long=function(v){try{if($util.Long)return $util.Long.fromString(String(v),true);}catch(e){}return Number(v)||0;};
   function currentCardSeason(){
@@ -486,6 +490,43 @@ HOOK = r"""
     }else{
       log("local HangupOperate query",level,"elapsed",elapsed,"ready",ready);
     }
+    return r;
+  }
+  function makeOfflineQuickHangupRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;
+    var stage=Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||1,
+      next=offlineTaskConfig("NEW_SCENE_GRADE_CONF",stage+1),
+      level=Number(next&&next.level)||1,
+      cfg=offlineTaskConfig("HANGUP_DETAILS_CONF",level),
+      operate=Number(req&&req.operate)||0;
+    r.todayUseCount=quickCombatUsed;r.maxDayUseCount=1;
+    r.todayBuyCount=0;r.maxDayBuyCount=0;
+    r.awards=cfg?offlineConfigActions(cfg.actionArr):[];
+    if(!cfg||!Array.isArray(cfg.actionArr)||!cfg.actionArr.length){
+      r.ret=1;r.awards=[];
+      log("local QuickHangupOperate rejected: reward config missing",stage,level);
+      return r;
+    }
+    if(operate===0){
+      r.ret=0;
+      log("local QuickHangupOperate query",level,"used",quickCombatUsed,"rewards",r.awards.length);
+      return r;
+    }
+    if(operate!==1||quickCombatUsed>=1){
+      r.ret=1;r.awards=[];
+      log("local QuickHangupOperate rejected",operate,"used",quickCombatUsed);
+      return r;
+    }
+    applyOfflineActions(r.awards);
+    quickCombatUsed=1;
+    offlineTaskMeta.dailyCounters[49]=(Number(offlineTaskMeta.dailyCounters[49])||0)+1;
+    syncOfflineTaskProgress(u);
+    r.ret=0;r.todayUseCount=quickCombatUsed;
+    log("local QuickHangupOperate claimed",level,"used",quickCombatUsed,
+      "rewards",r.awards.length);
+    save();
     return r;
   }
   function addLocalGold(amount){
@@ -2322,6 +2363,11 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(restoredCrystal&&restoredCrystal.crystalLevel)||0,
         Number(restoredCrystalSlot&&restoredCrystalSlot.slotType)||0,
         Number(restoredCrystalSlot&&restoredCrystalSlot.genId)||0);
+      log("local save restored hangup",Number(offlineTaskMeta.lastHangupTime)||0,
+        Number(offlineTaskMeta.dailyCounters&&offlineTaskMeta.dailyCounters[52])||0,
+        expectedHangupRestore>0?(hangupRestoredAfterDayReset?"PRESERVED":"NOT_PRESERVED"):"UNTESTED");
+      log("local save restored quick hangup",quickCombatUsed,"saved",Number(saved.quickCombatUsed)||0,"dayReset",offlineDayReset?1:0);
+      if(expectedHangupRestore>0)delete offlineTaskMeta.expectedHangupRestoreTime;
       log("local save restored item operations",
         Number(restoredItems[3000002]&&restoredItems[3000002].count||0),
         Number(restoredItems[1000590]&&restoredItems[1000590].count||0));
@@ -2673,18 +2719,7 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         r=makeOfflineHangupRsp(req,r);
       }
       else if(Resp===rp.QuickHangupOperateRsp){
-        var usedBefore=quickCombatUsed,operate=Number(req&&req.operate||0);
-        if(operate===1&&quickCombatUsed<1){
-          quickCombatUsed++;addLocalGold(10000);
-          offlineTaskMeta.dailyCounters[49]=(Number(offlineTaskMeta.dailyCounters[49])||0)+1;
-          syncOfflineTaskProgress(current);
-          save();
-        }
-        r.ret=(operate===2||(operate===1&&usedBefore>=1))?1:0;
-        r.todayUseCount=quickCombatUsed;r.maxDayUseCount=1;
-        r.todayBuyCount=0;r.maxDayBuyCount=0;
-        r.awards=r.ret===0&&operate===1?[offlineAction(rp.Action.ActionTye.ADD_GOLD,[10000])]:[];
-        log("local QuickHangupOperateRsp",operate,"used",quickCombatUsed);
+        r=makeOfflineQuickHangupRsp(req,r);
       }
       if(cb)setTimeout(function(){try{cb.call(ctx||null,r);}catch(e){log("response callback",e&&e.stack||e);}},0);
       return Promise.resolve(r);
@@ -2854,6 +2889,123 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       save();
       return {pass:ok,ret:rsp.ret,pet:Number(packs[index].pet&&packs[index].pet.id)||0,
         gold:afterGold,stones:afterStones};
+    },
+    selfTestHangup:function(){
+      ensure();
+      var u=DM.G().userInfo,stage=Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||1,
+        next=offlineTaskConfig("NEW_SCENE_GRADE_CONF",stage+1),
+        level=Number(next&&next.level)||1,cfg=offlineTaskConfig("HANGUP_DETAILS_CONF",level);
+      if(!cfg||!Array.isArray(cfg.actionArr)||!cfg.actionArr.length){
+        log("local hangup self-test FAIL missing configured rewards",stage,level);
+        return {pass:false};
+      }
+      function fingerprint(){
+        var money=u.baseInfo.moneyInfo||{},items=u.itemPackInfo&&u.itemPackInfo.idMap||{},
+          storage=u.petStorageInfo&&u.petStorageInfo.petArray||[],points=u.baseInfo.newPointItemMap||{};
+        return JSON.stringify({
+          gold:String(money.gold||0),diamond:Number(money.diamond)||0,cash:Number(money.cash)||0,
+          petCoin:String(money.petCoin||0),points:points,
+          items:Object.keys(items).sort(function(a,b){return Number(a)-Number(b);}).map(function(id){
+            return [id,Number(items[id]&&items[id].count)||0];
+          }),
+          pets:storage.map(function(p){return [Number(p&&p.genId)||0,Number(p&&p.id)||0];}),
+          avatarBits:u.baseInfo.avatarBits||[]
+        });
+      }
+      var now=Math.floor(Date.now()/1000);
+      offlineTaskMeta.lastHangupTime=now-59;
+      var shortTime=Number(offlineTaskMeta.lastHangupTime),beforeShort=fingerprint(),
+        shortReq=new rp.HangupOperateReq();
+      shortReq.operate=0;
+      var shortQuery=makeOfflineHangupRsp(shortReq,new rp.HangupOperateRsp());
+      var shortOk=Number(shortQuery.ret)===0&&Array.isArray(shortQuery.awards)&&
+        shortQuery.awards.length===0&&Number(offlineTaskMeta.lastHangupTime)===shortTime&&
+        fingerprint()===beforeShort;
+      now=Math.floor(Date.now()/1000);
+      offlineTaskMeta.lastHangupTime=now-3600;
+      var queryTime=Number(offlineTaskMeta.lastHangupTime),beforeQuery=fingerprint(),
+        queryReq=new rp.HangupOperateReq();
+      queryReq.operate=0;
+      var query=makeOfflineHangupRsp(queryReq,new rp.HangupOperateRsp());
+      var queryOk=Number(query.ret)===0&&Array.isArray(query.awards)&&
+        query.awards.length===cfg.actionArr.length&&query.awards.length>0&&
+        Number(offlineTaskMeta.lastHangupTime)===queryTime&&fingerprint()===beforeQuery;
+      var beforeClaim=fingerprint(),claimStarted=Math.floor(Date.now()/1000),
+        claimsBefore=Number(offlineTaskMeta.dailyCounters[52])||0,
+        claimReq=new rp.HangupOperateReq();
+      claimReq.operate=1;
+      var claim=makeOfflineHangupRsp(claimReq,new rp.HangupOperateRsp());
+      var afterClaim=fingerprint(),claimsAfter=Number(offlineTaskMeta.dailyCounters[52])||0,
+        claimOk=Number(claim.ret)===0&&Array.isArray(claim.awards)&&
+          claim.awards.length===cfg.actionArr.length&&claim.awards.length>0&&
+          Number(offlineTaskMeta.lastHangupTime)>=claimStarted&&
+          claimsAfter===claimsBefore+1&&afterClaim!==beforeClaim;
+      var duplicateReq=new rp.HangupOperateReq();duplicateReq.operate=1;
+      var duplicate=makeOfflineHangupRsp(duplicateReq,new rp.HangupOperateRsp());
+      var duplicateOk=Number(duplicate.ret)!==0&&
+        (!duplicate.awards||duplicate.awards.length===0)&&
+        fingerprint()===afterClaim&&
+        (Number(offlineTaskMeta.dailyCounters[52])||0)===claimsAfter;
+      var ok=shortOk&&queryOk&&claimOk&&duplicateOk;
+      log("local hangup self-test",ok?"PASS":"FAIL",
+        "query",query.ret,"claim",claim.ret,"duplicate",duplicate.ret,
+        "under60",shortOk?"PASS":"FAIL",
+        "level",level,"rewards",claim.awards&&claim.awards.length||0);
+      offlineTaskMeta.expectedHangupRestoreTime=Number(offlineTaskMeta.lastHangupTime)||0;
+      offlineTaskMeta.dayKey="1999-12-31";
+      save();
+      return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,
+        rewards:claim.awards&&claim.awards.length||0};
+    },
+    selfTestQuickHangup:function(){
+      ensure();
+      var u=DM.G().userInfo,stage=Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||1,
+        next=offlineTaskConfig("NEW_SCENE_GRADE_CONF",stage+1),
+        level=Number(next&&next.level)||1,cfg=offlineTaskConfig("HANGUP_DETAILS_CONF",level);
+      if(!cfg||!Array.isArray(cfg.actionArr)||!cfg.actionArr.length){
+        log("local quick hangup self-test FAIL missing configured rewards",stage,level);
+        return {pass:false};
+      }
+      function fingerprint(){
+        var money=u.baseInfo.moneyInfo||{},items=u.itemPackInfo&&u.itemPackInfo.idMap||{},
+          points=u.baseInfo.newPointItemMap||{};
+        return JSON.stringify({
+          gold:String(money.gold||0),diamond:Number(money.diamond)||0,cash:Number(money.cash)||0,
+          petExp:Number(points[56])||0,userExp:Number(points[4])||0,intelligence:Number(points[59])||0,
+          items:Object.keys(items).sort(function(a,b){return Number(a)-Number(b);}).map(function(id){
+            return [id,Number(items[id]&&items[id].count)||0];
+          })
+        });
+      }
+      quickCombatUsed=0;
+      var beforeQuery=fingerprint(),queryReq=new rp.QuickHangupOperateReq();
+      queryReq.operate=0;
+      var query=makeOfflineQuickHangupRsp(queryReq,new rp.QuickHangupOperateRsp());
+      var queryOk=Number(query.ret)===0&&query.todayUseCount===0&&query.maxDayUseCount===1&&
+        query.awards.length===cfg.actionArr.length&&fingerprint()===beforeQuery;
+      var beforeClaim=fingerprint(),claimsBefore=Number(offlineTaskMeta.dailyCounters[49])||0,
+        claimReq=new rp.QuickHangupOperateReq();
+      claimReq.operate=1;
+      var claim=makeOfflineQuickHangupRsp(claimReq,new rp.QuickHangupOperateRsp());
+      var afterClaim=fingerprint(),claimsAfter=Number(offlineTaskMeta.dailyCounters[49])||0;
+      var claimOk=Number(claim.ret)===0&&claim.todayUseCount===1&&
+        claim.awards.length===cfg.actionArr.length&&afterClaim!==beforeClaim&&
+        claimsAfter===claimsBefore+1;
+      var duplicateReq=new rp.QuickHangupOperateReq();duplicateReq.operate=1;
+      var duplicate=makeOfflineQuickHangupRsp(duplicateReq,new rp.QuickHangupOperateRsp());
+      var duplicateOk=Number(duplicate.ret)===1&&duplicate.awards.length===0&&
+        fingerprint()===afterClaim&&quickCombatUsed===1;
+      var cashBefore=Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash)||0,
+        paidReq=new rp.QuickHangupOperateReq();paidReq.operate=2;
+      var paid=makeOfflineQuickHangupRsp(paidReq,new rp.QuickHangupOperateRsp());
+      var paidOk=Number(paid.ret)===1&&paid.awards.length===0&&
+        (Number(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.cash)||0)===cashBefore;
+      var ok=queryOk&&claimOk&&duplicateOk&&paidOk;
+      log("local quick hangup self-test",ok?"PASS":"FAIL",
+        "query",query.ret,"claim",claim.ret,"duplicate",duplicate.ret,"paid",paid.ret,
+        "rewards",claim.awards&&claim.awards.length||0);
+      save();
+      return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,paid:paid.ret};
     },
     selfTestPetCrystal:function(){
       ensure();
@@ -3052,14 +3204,14 @@ OVERLAY = """
 <div id="offline-task-button">任务</div>
 <div id="offline-return-button">返回主城</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button"),rb=document.getElementById("offline-return-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 if(rb)rb.onclick=function(){if(window.OfflineGame)OfflineGame.returnToAdventure();};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """

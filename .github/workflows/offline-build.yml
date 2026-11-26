@@ -2,7 +2,7 @@ name: Build and test offline Android APK
 
 on:
   push:
-    branches: [main, offline-pet-progression-rebased]
+    branches: [main, offline-pet-progression-rebased, test/offline-hangup-regression, fix/offline-hangup-time, fix/offline-quick-hangup]
     paths:
       - ".github/workflows/offline-build.yml"
       - "work/tools/patch_offline_h5.py"
