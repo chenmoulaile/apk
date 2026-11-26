@@ -284,6 +284,10 @@ timeout 20s adb shell screencap -p /sdcard/offline-nature-power.png
 timeout 30s adb pull /sdcard/offline-nature-power.png tmp/offline-test/offline-nature-power.png > /dev/null 2>&1
 timeout 10s adb shell input tap 150 1534 > tmp/offline-test/offline-life-tree-self-test.txt 2>&1
 sleep 8
+timeout 10s adb shell input tap 150 1647 > tmp/offline-test/offline-trial-tower-self-test.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-trial-tower.png
+timeout 30s adb pull /sdcard/offline-trial-tower.png tmp/offline-test/offline-trial-tower.png > /dev/null 2>&1
 timeout 20s adb shell screencap -p /sdcard/offline-life-tree.png
 timeout 30s adb pull /sdcard/offline-life-tree.png tmp/offline-test/offline-life-tree.png > /dev/null 2>&1
 # Cold-restart again to prove the item and crystal changes themselves survive.
@@ -364,6 +368,9 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local life tree self-test PASS overview PASS base 10 roles 10,10,10,10,10 stale 1 cap 1 attrs PASS passives 100 4 1 trainerLevel 50" tmp/offline-test/logcat.txt \
   && grep -q "local save restored life tree 10 10 10 10 10 10" tmp/offline-test/logcat.txt \
   && grep -q "local LifeTreeOperate overview 6 10" tmp/offline-test/logcat.txt \
+  && grep -q "local trial tower self-test PASS overview PASS battle PASS sparse PASS schedule PASS stale 1 skip 0 award 0 duplicate 1 history 1" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored trial tower 241 2 100048 100001" tmp/offline-test/logcat.txt \
+  && grep -q "local TrialTower actual entry opened" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
   && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
@@ -441,6 +448,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-seven-day-sign.png \
   && test -s tmp/offline-test/offline-nature-power.png \
   && test -s tmp/offline-test/offline-life-tree.png \
+  && test -s tmp/offline-test/offline-trial-tower.png \
   && test -s tmp/offline-test/offline-town-screen.png \
   && test -s tmp/offline-test/offline-life-tree-real-screen.png \
   && test -s tmp/offline-test/offline-life-tree-role-screen.png \
