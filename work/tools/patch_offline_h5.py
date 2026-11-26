@@ -604,13 +604,14 @@ HOOK = r"""
       operate=Math.floor(Number(req&&req.operate)||0),entry=info&&info.naturePowers[id],
       powerCfg=offlineTaskConfig("NaturePowerConf",id);
     r.ret=0;r.naturePowerInfo=info;
+    // The original main panel queries all seven tracks without a naturePowerId.
+    if(operate===0){
+      log("local NaturePowerOperate query all tracks",
+        Object.keys(info.naturePowers||{}).length);
+      return r;
+    }
     if(!entry||!powerCfg){
       r.ret=1;log("local NaturePowerOperate rejected: invalid power",id);return r;
-    }
-    if(operate===0){
-      log("local NaturePowerOperate query",id,"level",Number(entry.level)||0,
-        "expr",Number(entry.exprSum)||0);
-      return r;
     }
     if(operate!==1){
       r.ret=1;
@@ -3149,10 +3150,10 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       var originalResource=Number(points[costId]||0),originalExpr=Number(entry.exprSum)||0,
         originalLevel=Number(entry.level)||0;
       points[costId]=costNum;
-      var queryReq=new rp.NaturePowerOperateReq();queryReq.operate=0;queryReq.naturePowerId=1;
+      var queryReq=new rp.NaturePowerOperateReq();queryReq.operate=0;
       var query=makeOfflineNaturePowerRsp(queryReq,new rp.NaturePowerOperateRsp());
       var queryOk=Number(query.ret)===0&&query.naturePowerInfo&&
-        query.naturePowerInfo.naturePowers[1]&&
+        [1,2,3,4,5,6,7].every(function(id){return !!query.naturePowerInfo.naturePowers[id];})&&
         Number(query.naturePowerInfo.naturePowers[1].exprSum)===originalExpr&&
         Number(points[costId])===costNum;
       var claimReq=new rp.NaturePowerOperateReq();claimReq.operate=1;claimReq.naturePowerId=1;
