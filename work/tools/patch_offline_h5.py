@@ -3392,6 +3392,12 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(controlBonus.damageCapPercent)||0,
         Number(defenseBonus.regenPercent)||0,
         Number(healerBonus.teamAtkDefPercent)||0);
+      log("local life tree self-test attributes",
+        Number(petBonus.hp)||0,Number(petBonus.attack)||0,Number(petBonus.defense)||0,
+        Number(petBonus.hpPercent)||0,
+        Number(controlBonus.damageCapPercent)||0,
+        Number(defenseBonus.regenPercent)||0,
+        Number(healerBonus.teamAtkDefPercent)||0);
       var oldTrainerLevel=Number(u.baseInfo.level)||1;
       u.baseInfo.level=Math.max(50,oldTrainerLevel);
       var ok=overviewOk&&basePass&&rolePass&&Number(stale.ret)!==0&&
