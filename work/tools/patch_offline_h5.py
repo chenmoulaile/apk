@@ -3316,9 +3316,11 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         totalSeeds+=Number(cfg.delAction.params[1])||0;
       }
       for(var role=1;role<=5;role++){
-        var roleCfg=offlineTaskConfig("LIFE_TREE_CONF",role+"_0");
-        if(!roleCfg||!roleCfg.delAction||!roleCfg.delAction.params)return {pass:false};
-        totalMarks+=Number(roleCfg.delAction.params[1])||0;
+        for(var roleLevel=0;roleLevel<10;roleLevel++){
+          var roleCfg=offlineTaskConfig("LIFE_TREE_CONF",role+"_"+roleLevel);
+          if(!roleCfg||!roleCfg.delAction||!roleCfg.delAction.params)return {pass:false};
+          totalMarks+=Number(roleCfg.delAction.params[1])||0;
+        }
       }
       // Seed only the exact configured materials needed by this deterministic test.
       addLocalItem(1001017,totalSeeds+2);
@@ -3334,34 +3336,51 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       var rolePass=basePass;
       if(rolePass){
         for(var roleId=1;roleId<=5;roleId++){
-          var roleReq=new rp.LifeTreeOperateReq();roleReq.operate=1;roleReq.confId=roleId+"_0";
-          var roleRsp=makeOfflineLifeTreeOperateRsp(roleReq,new rp.LifeTreeOperateRsp());
-          if(Number(roleRsp.ret)!==0||Number(info.levels[roleId])!==1){rolePass=false;break;}
+          for(var roleLevel=0;roleLevel<10;roleLevel++){
+            var roleReq=new rp.LifeTreeOperateReq();roleReq.operate=1;
+            roleReq.confId=roleId+"_"+roleLevel;
+            var roleRsp=makeOfflineLifeTreeOperateRsp(roleReq,new rp.LifeTreeOperateRsp());
+            if(Number(roleRsp.ret)!==0||Number(info.levels[roleId])!==roleLevel+1){
+              rolePass=false;break;
+            }
+          }
+          if(!rolePass)break;
         }
       }
       var staleBefore=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0,
         staleReq=new rp.LifeTreeOperateReq();staleReq.operate=1;staleReq.confId="1_0";
       var stale=makeOfflineLifeTreeOperateRsp(staleReq,new rp.LifeTreeOperateRsp()),
         staleAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
-      var capBefore=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
-      info.levels[1]=10;
-      var capReq=new rp.LifeTreeOperateReq();capReq.operate=1;capReq.confId="1_10";
-      var gate=makeOfflineLifeTreeOperateRsp(capReq,new rp.LifeTreeOperateRsp());
-      info.levels[1]=1;
-      var capAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
+      var capBefore=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0,
+        capReq=new rp.LifeTreeOperateReq();capReq.operate=1;capReq.confId="1_10";
+      var gate=makeOfflineLifeTreeOperateRsp(capReq,new rp.LifeTreeOperateRsp()),
+        capAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
       var gateOk=Number(gate.ret)!==0&&Number(info.levels[0])===10&&
-        capBefore===capAfter&&Number(info.levels[1])===1;
-      var petBonus=localLifeTreeBonusForPet(u,u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet);
+        capBefore===capAfter&&Number(info.levels[1])===10;
+      var petBonus=localLifeTreeBonusForPet(u,u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet),
+        controlBonus=localLifeTreeBonusForPet(u,{id:3102}),
+        defenseBonus=localLifeTreeBonusForPet(u,{id:3105}),
+        healerBonus=localLifeTreeBonusForPet(u,{id:3103});
       var attrOk=Number(petBonus.hp)>=1000000&&Number(petBonus.attack)>=200000&&
-        Number(petBonus.defense)>=200000&&Number(petBonus.hpPercent)>=1000;
+        Number(petBonus.defense)>=200000&&Number(petBonus.hpPercent)>=1000&&
+        Number(controlBonus.damageCapPercent)>=100&&
+        Number(defenseBonus.regenPercent)>=4&&
+        Number(healerBonus.teamAtkDefPercent)>=1;
+      // Life Tree is a level-50 unlock. Only the disposable emulator profile is raised.
+      var oldTrainerLevel=Number(u.baseInfo.level)||1;
+      u.baseInfo.level=Math.max(50,oldTrainerLevel);
       var ok=overviewOk&&basePass&&rolePass&&Number(stale.ret)!==0&&
         staleBefore===staleAfter&&gateOk&&attrOk;
       log("local life tree self-test",ok?"PASS":"FAIL",
         "overview",overviewOk?"PASS":"FAIL","base",Number(info.levels[0])||0,
         "roles",[1,2,3,4,5].map(function(id){return Number(info.levels[id])||0;}).join(","),
-        "stale",stale.ret,"cap",gate.ret,"attrs",attrOk?"PASS":"FAIL");
+        "stale",stale.ret,"cap",gate.ret,"attrs",attrOk?"PASS":"FAIL",
+        "passives",Number(controlBonus.damageCapPercent)||0,
+        Number(defenseBonus.regenPercent)||0,Number(healerBonus.teamAtkDefPercent)||0,
+        "trainerLevel",u.baseInfo.level);
       save();
-      return {pass:ok,base:Number(info.levels[0])||0,stale:stale.ret,cap:gate.ret,attrs:attrOk};
+      return {pass:ok,base:Number(info.levels[0])||0,stale:stale.ret,cap:gate.ret,
+        attrs:attrOk,trainerLevel:u.baseInfo.level};
     },
     selfTestNaturePower:function(){
       ensure();
