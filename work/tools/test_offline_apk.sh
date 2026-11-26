@@ -296,7 +296,7 @@ timeout 30s adb pull /sdcard/offline-final-reload-screen.png tmp/offline-test/of
 # Exercise the actual unlocked Life Tree entry from the Town screen after restoring the test profile.
 timeout 10s adb shell input tap 80 50 > tmp/offline-test/life-tree-tools-close.txt 2>&1
 sleep 3
-timeout 10s adb shell input tap 850 1825 > tmp/offline-test/life-tree-town-open.txt 2>&1
+timeout 10s adb shell input tap 1000 1825 > tmp/offline-test/life-tree-town-open.txt 2>&1
 sleep 8
 timeout 20s adb shell screencap -p /sdcard/offline-town-screen.png
 timeout 30s adb pull /sdcard/offline-town-screen.png tmp/offline-test/offline-town-screen.png > /dev/null 2>&1
