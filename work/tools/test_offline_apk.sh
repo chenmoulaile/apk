@@ -404,6 +404,9 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "Failed to load: atlas/equipmentAlert.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ElfSummon.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/Town.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/LifeTree.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "GroupLoader.*LifeTree.*Load Error" tmp/offline-test/logcat.txt \
+  && ! grep -Fq '"[Offline] unhandledrejection' tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/PerserateSpace/Ani3.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ZPower.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/upgradeLight.atlas" tmp/offline-test/logcat.txt \
