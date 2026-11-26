@@ -342,8 +342,8 @@ HOOK = r"""
     return Math.max(0,Number(matches[0].replace("%",""))||0);
   }
   function localLifeTreeBonusForPet(u,pet){
-    var bonus={hp:0,attack:0,defense:0,hpPercent:0,regenPercent:0,
-      damageCapPercent:0,teamAtkDefPercent:0,role:0};
+    var bonus={hp:0,attack:0,defense:0,hpPercent:0,attackPercent:0,defensePercent:0,
+      regenPercent:0,damageCapPercent:0,teamAtkDefPercent:0,role:0};
     if(!u||!pet)return bonus;
     var info=normalizeOfflineLifeTree(u),baseLevel=Number(info.levels[0])||0,
       baseCfg=offlineTaskConfig("LIFE_TREE_CONF","0_"+baseLevel),
@@ -3343,17 +3343,25 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         staleReq=new rp.LifeTreeOperateReq();staleReq.operate=1;staleReq.confId="1_0";
       var stale=makeOfflineLifeTreeOperateRsp(staleReq,new rp.LifeTreeOperateRsp()),
         staleAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
-      var gateReq=new rp.LifeTreeOperateReq();gateReq.operate=1;gateReq.confId="0_10";
-      var gate=makeOfflineLifeTreeOperateRsp(gateReq,new rp.LifeTreeOperateRsp());
-      var gateOk=Number(gate.ret)!==0&&Number(info.levels[0])===10;
+      var capBefore=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
+      info.levels[1]=10;
+      var capReq=new rp.LifeTreeOperateReq();capReq.operate=1;capReq.confId="1_10";
+      var gate=makeOfflineLifeTreeOperateRsp(capReq,new rp.LifeTreeOperateRsp());
+      info.levels[1]=1;
+      var capAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
+      var gateOk=Number(gate.ret)!==0&&Number(info.levels[0])===10&&
+        capBefore===capAfter&&Number(info.levels[1])===1;
+      var petBonus=localLifeTreeBonusForPet(u,u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet);
+      var attrOk=Number(petBonus.hp)>=1000000&&Number(petBonus.attack)>=200000&&
+        Number(petBonus.defense)>=200000&&Number(petBonus.hpPercent)>=1000;
       var ok=overviewOk&&basePass&&rolePass&&Number(stale.ret)!==0&&
-        staleBefore===staleAfter&&gateOk;
+        staleBefore===staleAfter&&gateOk&&attrOk;
       log("local life tree self-test",ok?"PASS":"FAIL",
         "overview",overviewOk?"PASS":"FAIL","base",Number(info.levels[0])||0,
         "roles",[1,2,3,4,5].map(function(id){return Number(info.levels[id])||0;}).join(","),
-        "stale",stale.ret,"cap",gate.ret);
+        "stale",stale.ret,"cap",gate.ret,"attrs",attrOk?"PASS":"FAIL");
       save();
-      return {pass:ok,base:Number(info.levels[0])||0,stale:stale.ret,cap:gate.ret};
+      return {pass:ok,base:Number(info.levels[0])||0,stale:stale.ret,cap:gate.ret,attrs:attrOk};
     },
     selfTestNaturePower:function(){
       ensure();
