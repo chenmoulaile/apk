@@ -296,7 +296,7 @@ HOOK = r"""
     try{
       // Most tables use numeric IDs. Composite-ID tables (e.g. LIFE_TREE_CONF
       // with keys "0_10" and "5_50") must retain their string keys.
-      var key=(typeof id==="string"&&/^\\d+_\\d+$/.test(id))?id:Number(id),
+      var key=(typeof id==="string"&&id.indexOf("_")>=0)?id:Number(id),
         cfg=GC.G()[name],value=cfg&&cfg.getDes(key);
       return value||null;
     }catch(e){return null;}
