@@ -294,7 +294,10 @@ HOOK = r"""
   }
   function offlineTaskConfig(name,id){
     try{
-      var cfg=GC.G()[name],value=cfg&&cfg.getDes(Number(id));
+      // Most tables use numeric IDs. Composite-ID tables (e.g. LIFE_TREE_CONF
+      // with keys "0_10" and "5_50") must retain their string keys.
+      var key=(typeof id==="string"&&/^\\d+_\\d+$/.test(id))?id:Number(id),
+        cfg=GC.G()[name],value=cfg&&cfg.getDes(key);
       return value||null;
     }catch(e){return null;}
   }
@@ -3309,22 +3312,37 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       var overview=makeOfflineLifeTreeOperateRsp(overviewReq,new rp.LifeTreeOperateRsp());
       var overviewOk=Number(overview.ret)===0&&overview.lifeTreeInfo&&
         [0,1,2,3,4,5].every(function(type){return overview.lifeTreeInfo.levels[type]!=null;});
+      log("local life tree self-test start","base",Number(info.levels[0])||0,
+        "roles",[1,2,3,4,5].map(function(id){return Number(info.levels[id])||0;}).join(","));
       var totalSeeds=0,totalMarks=0;
       for(var level=0;level<10;level++){
-        var cfg=offlineTaskConfig("LIFE_TREE_CONF","0_"+level);
-        if(!cfg||!cfg.delAction||!cfg.delAction.params)return {pass:false};
-        totalSeeds+=Number(cfg.delAction.params[1])||0;
+        var baseId="0_"+level,cfg=offlineTaskConfig("LIFE_TREE_CONF",baseId),
+          baseCost=cfg&&cfg.delAction&&cfg.delAction.params;
+        if(!cfg||!Array.isArray(baseCost)||baseCost.length<2){
+          log("local life tree self-test FAIL missing base config",baseId,
+            !!cfg,!!(cfg&&cfg.delAction),Array.isArray(baseCost));
+          return {pass:false,reason:"missing base config "+baseId};
+        }
+        totalSeeds+=Number(baseCost[1])||0;
       }
       for(var role=1;role<=5;role++){
         for(var roleLevel=0;roleLevel<10;roleLevel++){
-          var roleCfg=offlineTaskConfig("LIFE_TREE_CONF",role+"_"+roleLevel);
-          if(!roleCfg||!roleCfg.delAction||!roleCfg.delAction.params)return {pass:false};
-          totalMarks+=Number(roleCfg.delAction.params[1])||0;
+          var roleIdKey=role+"_"+roleLevel,roleCfg=offlineTaskConfig("LIFE_TREE_CONF",roleIdKey),
+            roleCost=roleCfg&&roleCfg.delAction&&roleCfg.delAction.params;
+          if(!roleCfg||!Array.isArray(roleCost)||roleCost.length<2){
+            log("local life tree self-test FAIL missing role config",roleIdKey,
+              !!roleCfg,!!(roleCfg&&roleCfg.delAction),Array.isArray(roleCost));
+            return {pass:false,reason:"missing role config "+roleIdKey};
+          }
+          totalMarks+=Number(roleCost[1])||0;
         }
       }
       // Seed only the exact configured materials needed by this deterministic test.
       addLocalItem(1001017,totalSeeds+2);
       addLocalItem(1001018,totalMarks+2);
+      log("local life tree self-test seeded materials",totalSeeds,totalMarks,
+        Number(u.itemPackInfo.idMap[1001017]&&u.itemPackInfo.idMap[1001017].count)||0,
+        Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0);
       var baseStart=Number(info.levels[0])||0,basePass=baseStart===0;
       if(basePass){
         for(var next=0;next<10;next++){
@@ -3366,7 +3384,6 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(controlBonus.damageCapPercent)>=100&&
         Number(defenseBonus.regenPercent)>=4&&
         Number(healerBonus.teamAtkDefPercent)>=1;
-      // Life Tree is a level-50 unlock. Only the disposable emulator profile is raised.
       var oldTrainerLevel=Number(u.baseInfo.level)||1;
       u.baseInfo.level=Math.max(50,oldTrainerLevel);
       var ok=overviewOk&&basePass&&rolePass&&Number(stale.ret)!==0&&
