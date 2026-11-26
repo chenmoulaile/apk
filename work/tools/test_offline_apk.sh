@@ -293,6 +293,21 @@ timeout 30s adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUN
 sleep 30
 timeout 20s adb shell screencap -p /sdcard/offline-final-reload-screen.png
 timeout 30s adb pull /sdcard/offline-final-reload-screen.png tmp/offline-test/offline-final-reload-screen.png > /dev/null 2>&1
+# Exercise the actual unlocked Life Tree entry from the Town screen after restoring the test profile.
+timeout 10s adb shell input tap 80 50 > tmp/offline-test/life-tree-tools-close.txt 2>&1
+sleep 3
+timeout 10s adb shell input tap 850 1825 > tmp/offline-test/life-tree-town-open.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-town-screen.png
+timeout 30s adb pull /sdcard/offline-town-screen.png tmp/offline-test/offline-town-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 190 1350 > tmp/offline-test/life-tree-real-open.txt 2>&1
+sleep 10
+timeout 20s adb shell screencap -p /sdcard/offline-life-tree-real-screen.png
+timeout 30s adb pull /sdcard/offline-life-tree-real-screen.png tmp/offline-test/offline-life-tree-real-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 240 650 > tmp/offline-test/life-tree-real-role-tab.txt 2>&1
+sleep 3
+timeout 20s adb shell screencap -p /sdcard/offline-life-tree-role-screen.png
+timeout 30s adb pull /sdcard/offline-life-tree-role-screen.png tmp/offline-test/offline-life-tree-role-screen.png > /dev/null 2>&1
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/final-reload-logcat.txt
 cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt tmp/offline-test/final-reload-logcat.txt > tmp/offline-test/logcat.txt
 {
@@ -347,8 +362,9 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored seven day sign 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local nature power self-test PASS query 0 upgrade 0 duplicate 1 resource PASS" tmp/offline-test/logcat.txt \
   && grep -q "local save restored nature power 1" tmp/offline-test/logcat.txt \
-  && grep -q "local life tree self-test PASS overview PASS base 10 roles 1,1,1,1,1 stale 1 cap 1" tmp/offline-test/logcat.txt \
-  && grep -q "local save restored life tree 10 1 1 1 1 1" tmp/offline-test/logcat.txt \
+  && grep -q "local life tree self-test PASS overview PASS base 10 roles 10,10,10,10,10 stale 1 cap 1 attrs PASS passives 100 4 1 trainerLevel 50" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored life tree 10 10 10 10 10 10" tmp/offline-test/logcat.txt \
+  && grep -q "local LifeTreeOperate overview 6 10" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
   && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
@@ -426,6 +442,9 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-seven-day-sign.png \
   && test -s tmp/offline-test/offline-nature-power.png \
   && test -s tmp/offline-test/offline-life-tree.png \
+  && test -s tmp/offline-test/offline-town-screen.png \
+  && test -s tmp/offline-test/offline-life-tree-real-screen.png \
+  && test -s tmp/offline-test/offline-life-tree-role-screen.png \
   && test -s tmp/offline-test/offline-task-daily.png \
   && test -s tmp/offline-test/offline-task-daily-claimed.png \
   && test -s tmp/offline-test/offline-task-weekly.png \
