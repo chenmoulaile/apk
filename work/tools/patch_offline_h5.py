@@ -159,6 +159,7 @@ HOOK = r"""
     if(!u.extInfo.newStoreRechargeInfo.petSetMeal)u.extInfo.newStoreRechargeInfo.petSetMeal={};
     if(!u.extInfo.chaseBeastInfo)u.extInfo.chaseBeastInfo=new rp.ChaseBeastInfo();
     if(!u.extInfo.chaseBeastInfo.chaseBeastGuardInfo)u.extInfo.chaseBeastInfo.chaseBeastGuardInfo={};
+    normalizeOfflineSevenDaySign(u);
   }
   function petFrom(p){
     var x=new rp.PetEntry();
@@ -298,6 +299,20 @@ HOOK = r"""
   function offlineTaskList(name){
     try{var cfg=GC.G()[name],rows=cfg&&cfg.getDesList();return Array.isArray(rows)?rows:[];}
     catch(e){return [];}
+  }
+  function normalizeOfflineSevenDaySign(u,dayKey){
+    if(!u)return null;
+    if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
+    var sign=u.activityInfo.sevenDaySign;
+    if(!sign)sign=u.activityInfo.sevenDaySign=new rp.SevenDaySign();
+    var key=String(dayKey||offlineToday);
+    if(offlineTaskMeta.sevenDaySignDayKey!==key){
+      sign.dailySign=0;
+      offlineTaskMeta.sevenDaySignDayKey=key;
+    }
+    sign.signDays=Math.max(0,Math.min(7,Math.floor(Number(sign.signDays)||0)));
+    sign.dailySign=Number(sign.dailySign)>0?1:0;
+    return sign;
   }
   function ensureOfflineTaskInfo(u){
     if(!u)return null;
@@ -526,6 +541,34 @@ HOOK = r"""
     r.ret=0;r.todayUseCount=quickCombatUsed;
     log("local QuickHangupOperate claimed",level,"used",quickCombatUsed,
       "rewards",r.awards.length);
+    save();
+    return r;
+  }
+  function makeOfflineSevenDaySignRsp(r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;
+    var sign=normalizeOfflineSevenDaySign(u);
+    r.signInfo=sign;
+    if(Number(sign.dailySign)>0||Number(sign.signDays)>=7){
+      r.ret=1;
+      log("local SevenDaySign rejected",Number(sign.signDays)||0,Number(sign.dailySign)||0);
+      return r;
+    }
+    var nextDay=Number(sign.signDays)+1,
+      cfg=offlineTaskConfig("SEVEN_DAY_SIGN_CONF",nextDay),
+      actions=cfg?offlineConfigActions(cfg.addAction):[];
+    if(!cfg||!actions.length){
+      r.ret=1;
+      log("local SevenDaySign rejected: reward config missing",nextDay);
+      return r;
+    }
+    applyOfflineActions(actions);
+    sign.signDays=nextDay;
+    sign.dailySign=1;
+    offlineTaskMeta.sevenDaySignDayKey=offlineToday;
+    r.ret=0;r.signInfo=sign;
+    log("local SevenDaySign claimed",nextDay,"rewards",actions.length);
     save();
     return r;
   }
@@ -2340,6 +2383,10 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
   function userInfo(){
     if(saved.restored&&saved.restored.baseInfo){
       current=saved.restored;
+      var restoredSevenDaySign=normalizeOfflineSevenDaySign(current);
+      log("local save restored seven day sign",
+        Number(restoredSevenDaySign&&restoredSevenDaySign.signDays)||0,
+        Number(restoredSevenDaySign&&restoredSevenDaySign.dailySign)||0);
       log("local save restored",String(current.baseInfo.moneyInfo&&current.baseInfo.moneyInfo.gold||0),Number(current.newSceneGradeInfo&&current.newSceneGradeInfo.sceneLevel||1));
       var restoredPet=current.petPackInfo&&current.petPackInfo.packArray&&current.petPackInfo.packArray[0]&&current.petPackInfo.packArray[0].pet;
       log("local save restored pet",Number(restoredPet&&restoredPet.level||0),String(restoredPet&&restoredPet.hp||0),String(restoredPet&&restoredPet.attack||0),String(restoredPet&&restoredPet.defense||0));
@@ -2715,6 +2762,9 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       else if(Resp===rp.NewTaskInfoOperateRsp){
         r=makeOfflineTaskOperate(req,r);
       }
+      else if(Resp===rp.SevenDaySignRsp){
+        r=makeOfflineSevenDaySignRsp(r);
+      }
       else if(Resp===rp.HangupOperateRsp){
         r=makeOfflineHangupRsp(req,r);
       }
@@ -3007,6 +3057,55 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       save();
       return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,paid:paid.ret};
     },
+    selfTestSevenDaySign:function(){
+      ensure();
+      var u=DM.G().userInfo,sign=normalizeOfflineSevenDaySign(u);
+      if(!sign||Number(sign.signDays)>=7){
+        log("local seven day sign self-test SKIP completed");
+        return {pass:true,skipped:true};
+      }
+      var nextDay=Number(sign.signDays)+1,
+        cfg=offlineTaskConfig("SEVEN_DAY_SIGN_CONF",nextDay),
+        actions=cfg?offlineConfigActions(cfg.addAction):[];
+      if(!cfg||!actions.length){
+        log("local seven day sign self-test FAIL missing reward config",nextDay);
+        return {pass:false};
+      }
+      // Simulate a date rollover without waiting for midnight.
+      sign.dailySign=1;
+      offlineTaskMeta.sevenDaySignDayKey="1999-12-31";
+      var rolled=normalizeOfflineSevenDaySign(u);
+      var dayResetOk=Number(rolled.dailySign)===0&&Number(rolled.signDays)===nextDay-1;
+      var beforeItems=u.itemPackInfo&&u.itemPackInfo.idMap||{},
+        rewardId=Number(actions[0].params&&actions[0].params[0])||0,
+        beforeCount=Number(beforeItems[rewardId]&&beforeItems[rewardId].count)||0,
+        beforeGold=String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0);
+      var req=new rp.SevenDaySignReq(),
+        claim=makeOfflineSevenDaySignRsp(new rp.SevenDaySignRsp());
+      var afterItems=u.itemPackInfo&&u.itemPackInfo.idMap||{},
+        afterCount=Number(afterItems[rewardId]&&afterItems[rewardId].count)||0,
+        claimOk=Number(claim.ret)===0&&Number(claim.signInfo&&claim.signInfo.signDays)===nextDay&&
+          Number(claim.signInfo&&claim.signInfo.dailySign)===1&&
+          (afterCount>beforeCount||String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0)!==beforeGold);
+      var afterClaim=JSON.stringify({
+        signDays:Number(sign.signDays),dailySign:Number(sign.dailySign),
+        count:afterCount,gold:String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0)
+      });
+      var duplicate=makeOfflineSevenDaySignRsp(new rp.SevenDaySignRsp());
+      var duplicateOk=Number(duplicate.ret)!==0&&
+        JSON.stringify({
+          signDays:Number(sign.signDays),dailySign:Number(sign.dailySign),
+          count:Number((u.itemPackInfo&&u.itemPackInfo.idMap||{})[rewardId]&&
+            u.itemPackInfo.idMap[rewardId].count)||0,
+          gold:String(u.baseInfo.moneyInfo&&u.baseInfo.moneyInfo.gold||0)
+        })===afterClaim;
+      var ok=dayResetOk&&claimOk&&duplicateOk;
+      log("local seven day sign self-test",ok?"PASS":"FAIL",
+        "day",nextDay,"duplicate",duplicate.ret,
+        "dayReset",dayResetOk?"PASS":"FAIL","rewards",actions.length);
+      save();
+      return {pass:ok,day:nextDay,duplicate:duplicate.ret,dayReset:dayResetOk};
+    },
     selfTestPetCrystal:function(){
       ensure();
       var u=DM.G().userInfo,info=localRefreshPetCrystal(u),
@@ -3204,14 +3303,14 @@ OVERLAY = """
 <div id="offline-task-button">任务</div>
 <div id="offline-return-button">返回主城</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button"),rb=document.getElementById("offline-return-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 if(rb)rb.onclick=function(){if(window.OfflineGame)OfflineGame.returnToAdventure();};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
