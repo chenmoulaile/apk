@@ -160,6 +160,7 @@ HOOK = r"""
     if(!u.extInfo.chaseBeastInfo)u.extInfo.chaseBeastInfo=new rp.ChaseBeastInfo();
     if(!u.extInfo.chaseBeastInfo.chaseBeastGuardInfo)u.extInfo.chaseBeastInfo.chaseBeastGuardInfo={};
     normalizeOfflineSevenDaySign(u);
+    normalizeOfflineNaturePower(u);
   }
   function petFrom(p){
     var x=new rp.PetEntry();
@@ -299,6 +300,29 @@ HOOK = r"""
   function offlineTaskList(name){
     try{var cfg=GC.G()[name],rows=cfg&&cfg.getDesList();return Array.isArray(rows)?rows:[];}
     catch(e){return [];}
+  }
+  function normalizeOfflineNaturePower(u){
+    if(!u)return null;
+    if(!u.naturePowerInfo)u.naturePowerInfo=new rp.NaturePowerInfo();
+    if(!u.naturePowerInfo.naturePowers)u.naturePowerInfo.naturePowers={};
+    for(var id=1;id<=7;id++){
+      if(!u.naturePowerInfo.naturePowers[id])
+        u.naturePowerInfo.naturePowers[id]=new rp.OneNaturePower();
+    }
+    return u.naturePowerInfo;
+  }
+  function localNaturePowerLevelForExpr(expr,maxLevel){
+    expr=Math.max(0,Number(expr)||0);
+    var rows=offlineTaskList("NaturePowerLevelConf").slice().sort(function(a,b){
+      return (Number(a.level)||0)-(Number(b.level)||0);
+    }),level=0;
+    for(var i=0;i<rows.length;i++){
+      var row=rows[i],rowLevel=Number(row.level)||0;
+      if(Number(row.needExpr)>0&&expr>=Number(row.needExpr))
+        level=Math.min(Number(maxLevel)||500,rowLevel+1);
+      else if(Number(row.needExpr)>expr)break;
+    }
+    return Math.max(0,level);
   }
   function normalizeOfflineSevenDaySign(u,dayKey){
     if(!u)return null;
@@ -569,6 +593,54 @@ HOOK = r"""
     offlineTaskMeta.sevenDaySignDayKey=offlineToday;
     r.ret=0;r.signInfo=sign;
     log("local SevenDaySign claimed",nextDay,"rewards",actions.length);
+    save();
+    return r;
+  }
+  function makeOfflineNaturePowerRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;
+    var info=normalizeOfflineNaturePower(u),id=Math.floor(Number(req&&req.naturePowerId)||0),
+      operate=Math.floor(Number(req&&req.operate)||0),entry=info&&info.naturePowers[id],
+      powerCfg=offlineTaskConfig("NaturePowerConf",id);
+    r.ret=0;r.naturePowerInfo=info;
+    // The original main panel queries all seven tracks without a naturePowerId.
+    if(operate===0){
+      log("local NaturePowerOperate query all tracks",
+        Object.keys(info.naturePowers||{}).length);
+      return r;
+    }
+    if(!entry||!powerCfg){
+      r.ret=1;log("local NaturePowerOperate rejected: invalid power",id);return r;
+    }
+    if(operate!==1){
+      r.ret=1;
+      log("local NaturePowerOperate rejected: online combat disabled",id,operate);
+      return r;
+    }
+    var level=Math.max(0,Math.floor(Number(entry.level)||0)),
+      maxLevel=Math.max(0,Number(powerCfg.maxLevel)||0),
+      levelCfg=offlineTaskConfig("NaturePowerLevelConf",level),
+      costId=id<=5?Number(levelCfg&&levelCfg.costItemId)||0:Number(levelCfg&&levelCfg.superCostItemId)||0,
+      costNum=id<=5?Number(levelCfg&&levelCfg.costItemNum)||0:Number(levelCfg&&levelCfg.superCostItemNum)||0,
+      points=u.baseInfo&&(u.baseInfo.newPointItemMap||(u.baseInfo.newPointItemMap={}));
+    if(level>=maxLevel||!levelCfg||costId<=0||costNum<=0||!points||
+      Number(points[costId]||0)<costNum){
+      r.ret=1;
+      log("local NaturePowerOperate rejected: max level or insufficient resource",
+        id,level,costId,costNum,Number(points&&points[costId]||0));
+      return r;
+    }
+    // The original progress animation counts experience in 20-point resource units.
+    var previousExpr=Math.max(0,Number(entry.exprSum)||0),
+      nextExpr=previousExpr+costNum*20,
+      nextLevel=localNaturePowerLevelForExpr(nextExpr,maxLevel);
+    points[costId]=Math.max(0,Number(points[costId]||0)-costNum);
+    entry.exprSum=nextExpr;
+    entry.level=Math.max(level,Math.min(maxLevel,nextLevel));
+    r.ret=0;r.naturePowerInfo=info;r.oneNaturePower=entry;
+    log("local NaturePowerOperate upgraded",id,"level",level,"->",entry.level,
+      "expr",previousExpr,"->",nextExpr,"cost",costId,costNum);
     save();
     return r;
   }
@@ -2387,6 +2459,10 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       log("local save restored seven day sign",
         Number(restoredSevenDaySign&&restoredSevenDaySign.signDays)||0,
         Number(restoredSevenDaySign&&restoredSevenDaySign.dailySign)||0);
+      var restoredNaturePower=normalizeOfflineNaturePower(current).naturePowers[1];
+      log("local save restored nature power",1,
+        Number(restoredNaturePower&&restoredNaturePower.level)||0,
+        Number(restoredNaturePower&&restoredNaturePower.exprSum)||0);
       log("local save restored",String(current.baseInfo.moneyInfo&&current.baseInfo.moneyInfo.gold||0),Number(current.newSceneGradeInfo&&current.newSceneGradeInfo.sceneLevel||1));
       var restoredPet=current.petPackInfo&&current.petPackInfo.packArray&&current.petPackInfo.packArray[0]&&current.petPackInfo.packArray[0].pet;
       log("local save restored pet",Number(restoredPet&&restoredPet.level||0),String(restoredPet&&restoredPet.hp||0),String(restoredPet&&restoredPet.attack||0),String(restoredPet&&restoredPet.defense||0));
@@ -2762,6 +2838,9 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       else if(Resp===rp.NewTaskInfoOperateRsp){
         r=makeOfflineTaskOperate(req,r);
       }
+      else if(Resp===rp.NaturePowerOperateRsp){
+        r=makeOfflineNaturePowerRsp(req,r);
+      }
       else if(Resp===rp.SevenDaySignRsp){
         r=makeOfflineSevenDaySignRsp(r);
       }
@@ -3057,6 +3136,46 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       save();
       return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,paid:paid.ret};
     },
+    selfTestNaturePower:function(){
+      ensure();
+      var u=DM.G().userInfo,info=normalizeOfflineNaturePower(u),entry=info.naturePowers[1],
+        powerCfg=offlineTaskConfig("NaturePowerConf",1),level=Math.max(0,Number(entry.level)||0),
+        levelCfg=offlineTaskConfig("NaturePowerLevelConf",level),
+        costId=Number(levelCfg&&levelCfg.costItemId)||0,costNum=Number(levelCfg&&levelCfg.costItemNum)||0,
+        points=u.baseInfo.newPointItemMap||(u.baseInfo.newPointItemMap={});
+      if(!powerCfg||!levelCfg||level>=Number(powerCfg.maxLevel)||costId<=0||costNum<=0){
+        log("local nature power self-test FAIL missing or max-level config",level);
+        return {pass:false};
+      }
+      var originalResource=Number(points[costId]||0),originalExpr=Number(entry.exprSum)||0,
+        originalLevel=Number(entry.level)||0;
+      points[costId]=costNum;
+      var queryReq=new rp.NaturePowerOperateReq();queryReq.operate=0;
+      var query=makeOfflineNaturePowerRsp(queryReq,new rp.NaturePowerOperateRsp());
+      var queryOk=Number(query.ret)===0&&query.naturePowerInfo&&
+        [1,2,3,4,5,6,7].every(function(id){return !!query.naturePowerInfo.naturePowers[id];})&&
+        Number(query.naturePowerInfo.naturePowers[1].exprSum)===originalExpr&&
+        Number(points[costId])===costNum;
+      var claimReq=new rp.NaturePowerOperateReq();claimReq.operate=1;claimReq.naturePowerId=1;
+      var claim=makeOfflineNaturePowerRsp(claimReq,new rp.NaturePowerOperateRsp()),
+        expectedExpr=originalExpr+costNum*20,
+        expectedLevel=localNaturePowerLevelForExpr(expectedExpr,Number(powerCfg.maxLevel)),
+        claimOk=Number(claim.ret)===0&&Number(claim.oneNaturePower&&claim.oneNaturePower.exprSum)===expectedExpr&&
+          Number(claim.oneNaturePower&&claim.oneNaturePower.level)===Math.max(originalLevel,expectedLevel)&&
+          Number(points[costId])===0;
+      var afterClaim=JSON.stringify({level:Number(entry.level),expr:Number(entry.exprSum),resource:Number(points[costId]||0)});
+      var duplicateReq=new rp.NaturePowerOperateReq();duplicateReq.operate=1;duplicateReq.naturePowerId=1;
+      var duplicate=makeOfflineNaturePowerRsp(duplicateReq,new rp.NaturePowerOperateRsp());
+      var duplicateOk=Number(duplicate.ret)!==0&&
+        JSON.stringify({level:Number(entry.level),expr:Number(entry.exprSum),resource:Number(points[costId]||0)})===afterClaim;
+      points[costId]=originalResource;
+      var ok=queryOk&&claimOk&&duplicateOk;
+      log("local nature power self-test",ok?"PASS":"FAIL","query",query.ret,
+        "upgrade",claim.ret,"duplicate",duplicate.ret,"resource",claimOk?"PASS":"FAIL",
+        "level",entry.level,"expr",entry.exprSum);
+      save();
+      return {pass:ok,query:query.ret,upgrade:claim.ret,duplicate:duplicate.ret};
+    },
     selfTestSevenDaySign:function(){
       ensure();
       var u=DM.G().userInfo,sign=normalizeOfflineSevenDaySign(u);
@@ -3303,14 +3422,14 @@ OVERLAY = """
 <div id="offline-task-button">任务</div>
 <div id="offline-return-button">返回主城</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="nature-power-test">验证自然之力</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button"),rb=document.getElementById("offline-return-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 if(rb)rb.onclick=function(){if(window.OfflineGame)OfflineGame.returnToAdventure();};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="nature-power-test")OfflineGame.selfTestNaturePower();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """

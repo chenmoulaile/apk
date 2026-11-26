@@ -278,6 +278,10 @@ timeout 10s adb shell input tap 150 1308 > tmp/offline-test/offline-seven-day-si
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-seven-day-sign.png
 timeout 30s adb pull /sdcard/offline-seven-day-sign.png tmp/offline-test/offline-seven-day-sign.png > /dev/null 2>&1
+timeout 10s adb shell input tap 150 1421 > tmp/offline-test/offline-nature-power-self-test.txt 2>&1
+sleep 5
+timeout 20s adb shell screencap -p /sdcard/offline-nature-power.png
+timeout 30s adb pull /sdcard/offline-nature-power.png tmp/offline-test/offline-nature-power.png > /dev/null 2>&1
 # Cold-restart again to prove the item and crystal changes themselves survive.
 timeout 10s adb shell am force-stop com.ruirui.cjjlq
 sleep 3
@@ -337,6 +341,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local quick hangup self-test PASS query 0 claim 0 duplicate 1 paid 1 rewards 12" tmp/offline-test/logcat.txt \
   && grep -q "local seven day sign self-test PASS day 1 duplicate 1 dayReset PASS rewards 1" tmp/offline-test/logcat.txt \
   && grep -q "local save restored seven day sign 1 1" tmp/offline-test/logcat.txt \
+  && grep -q "local nature power self-test PASS query 0 upgrade 0 duplicate 1 resource PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored nature power 1" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
   && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
@@ -412,6 +418,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-tools-menu.png \
   && test -s tmp/offline-test/offline-final-reload-screen.png \
   && test -s tmp/offline-test/offline-seven-day-sign.png \
+  && test -s tmp/offline-test/offline-nature-power.png \
   && test -s tmp/offline-test/offline-task-daily.png \
   && test -s tmp/offline-test/offline-task-daily-claimed.png \
   && test -s tmp/offline-test/offline-task-weekly.png \
