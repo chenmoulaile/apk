@@ -93,7 +93,7 @@ def main() -> int:
         restored[page_rel] = download(args.base_url, root, page_rel)
 
     # The main Life Tree panel uses this separately declared background image.
-    loose_bg = f"{group}/bg1.png"
+    loose_bg = f"atlas/{group}/bg1.png"
     restored[loose_bg] = download(args.base_url, root, loose_bg)
 
     for path, record in restored.items():
