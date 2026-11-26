@@ -38,6 +38,7 @@ OFFLINE_UI_SKIN_PREFIXES = (
     "upgradelight/",
     # Life Tree panel skins are requested by the runtime group name "LifeTree".
     "lifetree/",
+    "trialtower/",
 )
 
 def is_offline_ui_skin(path: str) -> bool:
@@ -93,6 +94,8 @@ CORE_FILES = [
     # The level-50 Life Tree panel is runtime-loaded by group name, not a literal .atlas path.
     "atlas/LifeTree.atlas",
     "atlas/LifeTree/bg1.png",
+    "atlas/TrialTower.atlas",
+    "atlas/TrialTower/bg2.jpg",
     # Daily/weekly task progress icons and the summon task reward image.
     "res/icons/rhyd_02.png",
     "res/icons/zhyd_01.png",

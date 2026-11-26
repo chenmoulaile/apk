@@ -54,6 +54,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, required=True, help="H5 client root")
     parser.add_argument("--group", default="LifeTree", help="Laya atlas group name")
+    parser.add_argument("--background", default="bg1.png", help="additional loose group background asset")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     args = parser.parse_args()
 
@@ -93,7 +94,7 @@ def main() -> int:
         restored[page_rel] = download(args.base_url, root, page_rel)
 
     # The main Life Tree panel uses this separately declared background image.
-    loose_bg = f"atlas/{group}/bg1.png"
+    loose_bg = f"atlas/{group}/{args.background}"
     restored[loose_bg] = download(args.base_url, root, loose_bg)
 
     for path, record in restored.items():
