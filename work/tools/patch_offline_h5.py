@@ -357,7 +357,7 @@ HOOK = r"""
     ["confIdsOne","confIdsTwo","confIdsThree"].forEach(function(key){
       if(!Array.isArray(info[key]))info[key]=[];
     });
-    if(!info.tasks||typeof info.tasks!=="object")info.tasks={};
+    if(!info.tasks||info.tasks===$util.emptyObject||typeof info.tasks!=="object")info.tasks={};
     var tower=u.activityInfo.trialTowerInfo||{levels:{}},
       scene=Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||
         Number(u.baseInfo&&u.baseInfo.sceneLevel)||0,
@@ -3713,8 +3713,9 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
             jackpotCount=confs.filter(function(cfg){return cfg&&Number(cfg.jackpotType)===1;}).length,
             uniqueIds=Object.create(null);
           ids.forEach(function(id){uniqueIds[String(id)]=true;});
+          var weightedOk=confs.every(function(cfg){return cfg&&Number(cfg.weights)>0;});
           var valid=Number(drawn.ret)===0&&ids.length===10&&
-            Object.keys(uniqueIds).length===10&&jackpotCount===1&&
+            Object.keys(uniqueIds).length===10&&jackpotCount===1&&weightedOk&&
             confs.every(function(cfg){return cfg&&Number(cfg.roundNum)===round;});
           roundDrawOk=roundDrawOk&&valid;
           drawCount++;
@@ -3776,7 +3777,8 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       var ok=validConfig&&roundsOk&&drawCount===15&&claimCount===5&&
         gateRejectCount===5&&duplicateRejectCount>=5&&petRewardCount===5&&completedOk;
       log("local divination trial self-test",ok?"PASS":"FAIL",
-        "config",validConfig?"PASS":"FAIL","draws",drawCount,"claims",claimCount,
+        "config",validConfig?"PASS":"FAIL","weighted",roundsOk?"PASS":"FAIL",
+        "draws",drawCount,"claims",claimCount,
         "gates",gateRejectCount,"duplicates",duplicateRejectCount,
         "petRewards",petRewardCount,"completed",completedOk?"PASS":"FAIL");
       save();

@@ -380,10 +380,12 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored life tree 10 10 10 10 10 10" tmp/offline-test/logcat.txt \
   && grep -q "local LifeTreeOperate overview 6 10" tmp/offline-test/logcat.txt \
   && grep -q "local trial tower self-test PASS overview PASS battle PASS sparse PASS schedule PASS stale 1 skip 0 award 0 duplicate 1 history 1 level 241 dayCount 2 milestone 100048" tmp/offline-test/logcat.txt \
-  && grep -q "local divination trial self-test PASS config PASS draws 15 claims 5 gates 5 duplicates 10 petRewards 5 completed PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local divination trial self-test PASS config PASS weighted PASS draws 15 claims 5 gates 5 duplicates 10 petRewards 5 completed PASS" tmp/offline-test/logcat.txt \
   && grep -q "local save restored divination trial 0 0 0 0 0 1,1,1,0,1" tmp/offline-test/logcat.txt \
   && grep -q "local DivinationTrial actual entry opened" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/Divine.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "GroupLoader.*Divine.*Load Error" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: Divine/" tmp/offline-test/logcat.txt \
   && ! grep -q "GroupLoader.*Divine.*Load Error" tmp/offline-test/logcat.txt \
   && grep -q "local save restored trial tower 241 2 100048 100001" tmp/offline-test/logcat.txt \
   && grep -q "local TrialTower actual entry opened" tmp/offline-test/logcat.txt \
