@@ -282,6 +282,16 @@ timeout 10s adb shell input tap 150 1421 > tmp/offline-test/offline-nature-power
 sleep 5
 timeout 20s adb shell screencap -p /sdcard/offline-nature-power.png
 timeout 30s adb pull /sdcard/offline-nature-power.png tmp/offline-test/offline-nature-power.png > /dev/null 2>&1
+timeout 10s adb shell input tap 150 1534 > tmp/offline-test/offline-life-tree-self-test.txt 2>&1
+sleep 8
+timeout 10s adb shell input tap 150 1647 > tmp/offline-test/offline-trial-tower-self-test.txt 2>&1
+sleep 8
+timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-trial-tower-overlay-close.txt 2>&1
+sleep 3
+timeout 20s adb shell screencap -p /sdcard/offline-trial-tower.png
+timeout 30s adb pull /sdcard/offline-trial-tower.png tmp/offline-test/offline-trial-tower.png > /dev/null 2>&1
+timeout 20s adb shell screencap -p /sdcard/offline-life-tree.png
+timeout 30s adb pull /sdcard/offline-life-tree.png tmp/offline-test/offline-life-tree.png > /dev/null 2>&1
 # Cold-restart again to prove the item and crystal changes themselves survive.
 timeout 10s adb shell am force-stop com.ruirui.cjjlq
 sleep 3
@@ -289,6 +299,20 @@ timeout 30s adb shell monkey -p com.ruirui.cjjlq -c android.intent.category.LAUN
 sleep 30
 timeout 20s adb shell screencap -p /sdcard/offline-final-reload-screen.png
 timeout 30s adb pull /sdcard/offline-final-reload-screen.png tmp/offline-test/offline-final-reload-screen.png > /dev/null 2>&1
+# The offline debug menu is closed after cold restart. Open Town and then tap
+# the Life Tree building (the original TownUI btnTree / Doctor Lab).
+timeout 10s adb shell input tap 1000 1825 > tmp/offline-test/life-tree-town-open.txt 2>&1
+sleep 8
+timeout 20s adb shell screencap -p /sdcard/offline-town-screen.png
+timeout 30s adb pull /sdcard/offline-town-screen.png tmp/offline-test/offline-town-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 190 1350 > tmp/offline-test/life-tree-real-open.txt 2>&1
+sleep 10
+timeout 20s adb shell screencap -p /sdcard/offline-life-tree-real-screen.png
+timeout 30s adb pull /sdcard/offline-life-tree-real-screen.png tmp/offline-test/offline-life-tree-real-screen.png > /dev/null 2>&1
+timeout 10s adb shell input tap 240 650 > tmp/offline-test/life-tree-real-role-tab.txt 2>&1
+sleep 3
+timeout 20s adb shell screencap -p /sdcard/offline-life-tree-role-screen.png
+timeout 30s adb pull /sdcard/offline-life-tree-role-screen.png tmp/offline-test/offline-life-tree-role-screen.png > /dev/null 2>&1
 timeout 30s adb logcat -d -v threadtime > tmp/offline-test/final-reload-logcat.txt
 cat tmp/offline-test/first-run-logcat.txt tmp/offline-test/reload-logcat.txt tmp/offline-test/final-reload-logcat.txt > tmp/offline-test/logcat.txt
 {
@@ -343,6 +367,12 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored seven day sign 1 1" tmp/offline-test/logcat.txt \
   && grep -q "local nature power self-test PASS query 0 upgrade 0 duplicate 1 resource PASS" tmp/offline-test/logcat.txt \
   && grep -q "local save restored nature power 1" tmp/offline-test/logcat.txt \
+  && grep -q "local life tree self-test PASS overview PASS base 10 roles 10,10,10,10,10 stale 1 cap 1 attrs PASS passives 100 4 1 trainerLevel 50" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored life tree 10 10 10 10 10 10" tmp/offline-test/logcat.txt \
+  && grep -q "local LifeTreeOperate overview 6 10" tmp/offline-test/logcat.txt \
+  && grep -q "local trial tower self-test PASS overview PASS battle PASS sparse PASS schedule PASS stale 1 skip 0 award 0 duplicate 1 history 1 level 241 dayCount 2 milestone 100048" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored trial tower 241 2 100048 100001" tmp/offline-test/logcat.txt \
+  && grep -q "local TrialTower actual entry opened" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up batch 2" tmp/offline-test/logcat.txt \
   && grep -q "local save restored card-star-up pet 6" tmp/offline-test/logcat.txt \
@@ -358,7 +388,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -Eq "local save restored hangup [1-9][0-9]* 0 PRESERVED" tmp/offline-test/logcat.txt \
   && grep -q "local save restored quick hangup 0 saved 1 dayReset 1" tmp/offline-test/logcat.txt \
   && grep -q "local save restored item operations 1 1" tmp/offline-test/logcat.txt \
-  && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175 combat 17425 2649 1495" tmp/offline-test/logcat.txt \
+  && grep -q "local pet equipment bonus 1 hp 3125 attack 229 defense 175 lifeTree 0 0 combat 17425 2649 1495" tmp/offline-test/logcat.txt \
    && test -s tmp/offline-test/offline-pet-main-screen.png \
   && test -s tmp/offline-test/offline-main-after-challenge.png \
    && test -s tmp/offline-test/offline-pet-after-growup-close.png \
@@ -383,6 +413,13 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "Failed to load: atlas/equipmentAlert.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ElfSummon.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/Town.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: res/items/1/1001017.png" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: res/items/1/1001018.png" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/LifeTree.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/TrialTower.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "GroupLoader.*TrialTower.*Load Error" tmp/offline-test/logcat.txt \
+  && ! grep -q "GroupLoader.*LifeTree.*Load Error" tmp/offline-test/logcat.txt \
+  && ! grep -Fq '"[Offline] unhandledrejection' tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/PerserateSpace/Ani3.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ZPower.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/upgradeLight.atlas" tmp/offline-test/logcat.txt \
@@ -419,6 +456,11 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-final-reload-screen.png \
   && test -s tmp/offline-test/offline-seven-day-sign.png \
   && test -s tmp/offline-test/offline-nature-power.png \
+  && test -s tmp/offline-test/offline-life-tree.png \
+  && test -s tmp/offline-test/offline-trial-tower.png \
+  && test -s tmp/offline-test/offline-town-screen.png \
+  && test -s tmp/offline-test/offline-life-tree-real-screen.png \
+  && test -s tmp/offline-test/offline-life-tree-role-screen.png \
   && test -s tmp/offline-test/offline-task-daily.png \
   && test -s tmp/offline-test/offline-task-daily-claimed.png \
   && test -s tmp/offline-test/offline-task-weekly.png \

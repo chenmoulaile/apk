@@ -36,6 +36,9 @@ OFFLINE_UI_SKIN_PREFIXES = (
     "pokemon/",
     "zpower/",
     "upgradelight/",
+    # Life Tree panel skins are requested by the runtime group name "LifeTree".
+    "lifetree/",
+    "trialtower/",
 )
 
 def is_offline_ui_skin(path: str) -> bool:
@@ -88,6 +91,14 @@ CORE_FILES = [
     "atlas/ElfSummon.atlas",
     "atlas/PerserateSpace/Ani3.atlas",
     "atlas/Town.atlas",
+    # The level-50 Life Tree panel is runtime-loaded by group name, not a literal .atlas path.
+    "atlas/LifeTree.atlas",
+    "atlas/LifeTree/bg1.png",
+    # Life Tree material icons are selected by numeric item ID at runtime.
+    "res/items/1/1001017.png",
+    "res/items/1/1001018.png",
+    "atlas/TrialTower.atlas",
+    "atlas/TrialTower/bg2.jpg",
     # Daily/weekly task progress icons and the summon task reward image.
     "res/icons/rhyd_02.png",
     "res/icons/zhyd_01.png",

@@ -151,6 +151,7 @@ HOOK = r"""
     if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
     if(!u.activityInfo.trialTowerInfo)u.activityInfo.trialTowerInfo=new rp.TrialTowerInfo();
     if(!u.activityInfo.trialTowerInfo.levels)u.activityInfo.trialTowerInfo.levels={};
+    if(!u.activityInfo.lifeTreeInfo)u.activityInfo.lifeTreeInfo=new rp.LifeTreeInfo();
     if(!u.activityInfo.divinationTrialInfo)u.activityInfo.divinationTrialInfo=new rp.DivinationTrialInfo();
     if(!u.activityInfo.divinationTrialInfo.tasks)u.activityInfo.divinationTrialInfo.tasks={};
     if(!u.extInfo)u.extInfo=new rp.UserExtInfo();
@@ -161,6 +162,8 @@ HOOK = r"""
     if(!u.extInfo.chaseBeastInfo.chaseBeastGuardInfo)u.extInfo.chaseBeastInfo.chaseBeastGuardInfo={};
     normalizeOfflineSevenDaySign(u);
     normalizeOfflineNaturePower(u);
+    normalizeOfflineLifeTree(u);
+    normalizeOfflineTrialTower(u);
   }
   function petFrom(p){
     var x=new rp.PetEntry();
@@ -293,13 +296,55 @@ HOOK = r"""
   }
   function offlineTaskConfig(name,id){
     try{
-      var cfg=GC.G()[name],value=cfg&&cfg.getDes(Number(id));
+      // Most tables use numeric IDs. Composite-ID tables (e.g. LIFE_TREE_CONF
+      // with keys "0_10" and "5_50") must retain their string keys.
+      var key=(typeof id==="string"&&id.indexOf("_")>=0)?id:Number(id),
+        cfg=GC.G()[name],value=cfg&&cfg.getDes(key);
       return value||null;
     }catch(e){return null;}
   }
   function offlineTaskList(name){
     try{var cfg=GC.G()[name],rows=cfg&&cfg.getDesList();return Array.isArray(rows)?rows:[];}
     catch(e){return [];}
+  }
+  function normalizeOfflineTrialTower(u){
+    if(!u)return null;
+    if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
+    if(!u.activityInfo.trialTowerInfo)
+      u.activityInfo.trialTowerInfo=new rp.TrialTowerInfo();
+    var info=u.activityInfo.trialTowerInfo;
+    ["levels","dayCounts","isgetTotalAward","cangetTotalAward","dailyRedot"].forEach(function(k){
+      if(!info[k]||typeof info[k]!=="object")info[k]={};
+    });
+    for(var type=0;type<=5;type++){
+      info.levels[type]=Math.max(0,Math.floor(Number(info.levels[type])||0));
+      info.dayCounts[type]=Math.max(0,Math.floor(Number(info.dayCounts[type])||0));
+      info.isgetTotalAward[type]=Math.max(0,Math.floor(Number(info.isgetTotalAward[type])||0));
+      info.cangetTotalAward[type]=Math.max(0,Math.floor(Number(info.cangetTotalAward[type])||0));
+      if(info.dailyRedot[type]==null)info.dailyRedot[type]=0;
+    }
+    if(offlineTaskMeta.trialTowerDayKey!==offlineToday){
+      for(var resetType=0;resetType<=5;resetType++){
+        info.dayCounts[resetType]=0;
+        info.dailyRedot[resetType]=0;
+      }
+      offlineTaskMeta.trialTowerDayKey=offlineToday;
+      log("local trial tower daily counts reset",offlineToday);
+    }
+    updateOfflineTrialTowerMilestones(info);
+    return info;
+  }
+  function updateOfflineTrialTowerMilestones(info){
+    if(!info)return;
+    var rows=offlineTaskList("TRIAL_TOWER_AWARD_CONF");
+    for(var type=0;type<=5;type++){
+      var level=Number(info.levels&&info.levels[type])||0,maxId=0;
+      rows.forEach(function(row){
+        if(Number(row.type||0)===type&&Number(row.level)<=level)
+          maxId=Math.max(maxId,Number(row.id)||0);
+      });
+      info.cangetTotalAward[type]=Math.max(Number(info.cangetTotalAward[type])||0,maxId);
+    }
   }
   function normalizeOfflineNaturePower(u){
     if(!u)return null;
@@ -310,6 +355,69 @@ HOOK = r"""
         u.naturePowerInfo.naturePowers[id]=new rp.OneNaturePower();
     }
     return u.naturePowerInfo;
+  }
+  function normalizeOfflineLifeTree(u){
+    if(!u)return null;
+    if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
+    if(!u.activityInfo.lifeTreeInfo)u.activityInfo.lifeTreeInfo=new rp.LifeTreeInfo();
+    var info=u.activityInfo.lifeTreeInfo;
+    if(!info.levels)info.levels={};
+    if(!info.ancestorStars)info.ancestorStars={};
+    for(var type=0;type<=5;type++)
+      info.levels[type]=Math.max(0,Math.floor(Number(info.levels[type])||0));
+    function recordPet(pet){
+      if(!pet||!Number(pet.id))return;
+      var id=String(Number(pet.id)),star=Math.max(0,Number(pet.starLevel)||0);
+      if(star>Number(info.ancestorStars[id]||0))info.ancestorStars[id]=star;
+    }
+    (u.petStorageInfo&&u.petStorageInfo.petArray||[]).forEach(recordPet);
+    (u.petPackInfo&&u.petPackInfo.packArray||[]).forEach(function(node){recordPet(node&&node.pet);});
+    return info;
+  }
+  function localLifeTreePassivePercent(type,level){
+    var cfg=offlineTaskConfig("LIFE_TREE_CONF",String(type)+"_"+String(level));
+    if(!cfg||!Number(cfg.passiveSkillId))return 0;
+    var skill=null;
+    try{skill=GC.G().skillConfig.getDes(Number(cfg.passiveSkillId));}catch(_){}
+    var desc=String(skill&&skill.desc||"");
+    var matches=desc.match(/(\d+(?:\.\d+)?)\s*%/g);
+    if(!matches||!matches.length)return 0;
+    return Math.max(0,Number(matches[0].replace("%",""))||0);
+  }
+  function localLifeTreeBonusForPet(u,pet){
+    var bonus={hp:0,attack:0,defense:0,hpPercent:0,attackPercent:0,defensePercent:0,
+      regenPercent:0,damageCapPercent:0,teamAtkDefPercent:0,role:0};
+    if(!u||!pet)return bonus;
+    var info=normalizeOfflineLifeTree(u),baseLevel=Number(info.levels[0])||0,
+      baseCfg=offlineTaskConfig("LIFE_TREE_CONF","0_"+baseLevel),
+      spiritCfg=null;
+    try{spiritCfg=GC.G().spiritConfig.getDes(Number(pet.id));}catch(_){}
+    (baseCfg&&baseCfg.attrs||[]).forEach(function(attr){
+      var type=Number(attr.type),value=Number(attr.value)||0,pct=Number(attr.percent)||0;
+      if(type===12){bonus.hp+=value;bonus.hpPercent+=pct;}
+      else if(type===13){bonus.attack+=value;bonus.attackPercent=(bonus.attackPercent||0)+pct;}
+      else if(type===14){bonus.defense+=value;bonus.defensePercent=(bonus.defensePercent||0)+pct;}
+    });
+    // SpiritDesHandle maps the raw actType field to normalized .type.
+    var role=Math.floor(Number(spiritCfg&&spiritCfg.type!=null?
+      spiritCfg.type:spiritCfg.actType)||0);
+    bonus.role=role;
+    if(role>=1&&role<=5){
+      var roleLevel=Number(info.levels[role])||0,
+        roleCfg=offlineTaskConfig("LIFE_TREE_CONF",role+"_"+roleLevel),
+        roleAttr=roleCfg&&roleCfg.attrs&&roleCfg.attrs[0];
+      if(roleAttr){
+        if(Number(roleAttr.type)===12){
+          bonus.hp+=Number(roleAttr.value)||0;
+          bonus.hpPercent+=Number(roleAttr.percent)||0;
+        }
+      }
+      var passive=localLifeTreePassivePercent(role,roleLevel);
+      if(role===3&&passive>0)bonus.damageCapPercent=passive;
+      if(role===4&&passive>0)bonus.regenPercent=passive;
+      if(role===5&&passive>0)bonus.teamAtkDefPercent=passive;
+    }
+    return bonus;
   }
   function localNaturePowerLevelForExpr(expr,maxLevel){
     expr=Math.max(0,Number(expr)||0);
@@ -594,6 +702,58 @@ HOOK = r"""
     r.ret=0;r.signInfo=sign;
     log("local SevenDaySign claimed",nextDay,"rewards",actions.length);
     save();
+    return r;
+  }
+  function makeOfflineLifeTreeOperateRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;
+    var info=normalizeOfflineLifeTree(u),operate=Math.floor(Number(req&&req.operate)||0);
+    r.ret=0;r.lifeTreeInfo=info;
+    if(operate===0){
+      log("local LifeTreeOperate overview",Object.keys(info.levels||{}).length,
+        Number(info.levels[0])||0);
+      return r;
+    }
+    if(operate!==1){
+      r.ret=1;log("local LifeTreeOperate rejected: unsupported operation",operate);return r;
+    }
+    var confId=String(req&&req.confId||""),parts=/^([0-5])_(\d+)$/.exec(confId);
+    if(!parts){r.ret=1;log("local LifeTreeOperate rejected: invalid confId",confId);return r;}
+    var type=Number(parts[1]),level=Number(parts[2]),currentLevel=Number(info.levels[type])||0;
+    if(level!==currentLevel){
+      r.ret=1;log("local LifeTreeOperate rejected: stale level",type,level,currentLevel);return r;
+    }
+    var cfg=offlineTaskConfig("LIFE_TREE_CONF",confId),
+      nextCfg=offlineTaskConfig("LIFE_TREE_CONF",type+"_"+(currentLevel+1));
+    if(!cfg||!nextCfg){
+      r.ret=1;log("local LifeTreeOperate rejected: max level or config missing",confId);return r;
+    }
+    var baseLevel=Number(info.levels[0])||0;
+    if(type!==0&&baseLevel<10){
+      r.ret=1;log("local LifeTreeOperate rejected: base tree locked",type,baseLevel);return r;
+    }
+    var baseCfg=offlineTaskConfig("LIFE_TREE_CONF","0_"+baseLevel),
+      maxRoleLevel=Number(baseCfg&&baseCfg.upperLimit)||0;
+    if(type!==0&&currentLevel+1>maxRoleLevel){
+      r.ret=1;log("local LifeTreeOperate rejected: base tree level cap",type,currentLevel+1,maxRoleLevel);return r;
+    }
+    var cost=localCrystalCostInfo(u,[cfg.delAction]);
+    if(!cost.ok){
+      r.ret=1;log("local LifeTreeOperate rejected: insufficient configured materials",
+        type,level,JSON.stringify(cost.requirements.items||{}));
+      return r;
+    }
+    if(!localCrystalConsumeCosts(u,cost.requirements)){
+      r.ret=1;log("local LifeTreeOperate rejected: material consumption failed",type,level);return r;
+    }
+    info.levels[type]=currentLevel+1;
+    r.ret=0;r.lifeTreeInfo=info;
+    localNotifyInventoryChanged(u,true);
+    save();
+    log("local LifeTreeOperate upgraded",type,currentLevel,"->",currentLevel+1,
+      "item",Number(cfg.delAction&&cfg.delAction.params&&cfg.delAction.params[0])||0,
+      "count",Number(cfg.delAction&&cfg.delAction.params&&cfg.delAction.params[1])||0);
     return r;
   }
   function makeOfflineNaturePowerRsp(req,r){
@@ -2246,22 +2406,31 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
     if(!pet||!Number(pet.id))return null;
     var cfg=GC.G().spiritConfig.getDes(Number(pet.id));
     if(!cfg)return null;
-    var bonus=localEquipmentBonusForNode(node);
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    var bonus=localEquipmentBonusForNode(node),tree=localLifeTreeBonusForPet(u,pet);
     var hp=Number(pet.hp)||Number(cfg.hp)||1;
     var attack=Number(pet.attack)||Number(cfg.attack)||1;
     var defense=Number(pet.defense)||Number(cfg.defense)||0;
-    hp=Math.round(hp*(1+(Number(bonus.hpPercent)||0)/10000)+(Number(bonus.hp)||0));
-    attack=Math.round(attack*(1+(Number(bonus.attackPercent)||0)/10000)+(Number(bonus.attack)||0));
-    defense=Math.round(defense*(1+(Number(bonus.defensePercent)||0)/10000)+(Number(bonus.defense)||0));
+    hp=Math.round(hp*(1+(Number(bonus.hpPercent||0)+Number(tree.hpPercent||0))/10000)+
+      Number(bonus.hp||0)+Number(tree.hp||0));
+    attack=Math.round(attack*(1+(Number(bonus.attackPercent||0)+Number(tree.attackPercent||0))/10000)+
+      Number(bonus.attack||0)+Number(tree.attack||0));
+    defense=Math.round(defense*(1+(Number(bonus.defensePercent||0)+Number(tree.defensePercent||0))/10000)+
+      Number(bonus.defense||0)+Number(tree.defense||0));
     log("local pet equipment bonus",Number(node&&node.index||0),
       "hp",Number(bonus.hp)||0,"attack",Number(bonus.attack)||0,
       "defense",Number(bonus.defense)||0,
+      "lifeTree",Number(tree.hp)||0,Number(tree.hpPercent)||0,
       "combat",hp,attack,defense);
-    return offlineCombatPet(pet.id,pet.level||1,hp,attack,defense,cfg.basicSkill);
+    var result=offlineCombatPet(pet.id,pet.level||1,hp,attack,defense,cfg.basicSkill);
+    result.lifeTreeRegenPercent=Number(tree.regenPercent)||0;
+    result.lifeTreeDamageCapPercent=Number(tree.damageCapPercent)||0;
+    result.lifeTreeTeamAtkDefPercent=Number(tree.teamAtkDefPercent)||0;
+    return result;
   }
-  function offlinePveEnemies(stage){
-    var stageCfg=GC.G().NEW_SCENE_GRADE_CONF.getDes(Number(stage));
-    var teamId=stageCfg&&stageCfg.fightId&&Number(stageCfg.fightId[0])||0;
+  function offlinePveEnemies(stage,teamIdOverride){
+    var stageCfg=teamIdOverride?null:GC.G().NEW_SCENE_GRADE_CONF.getDes(Number(stage));
+    var teamId=Number(teamIdOverride)||stageCfg&&stageCfg.fightId&&Number(stageCfg.fightId[0])||0;
     var team=teamId&&GC.G().PVE_TEAM_CONF.getDes(teamId);
     var result=new Array(6);
     result.__offlineConfigValid=true;
@@ -2294,18 +2463,54 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
     }
     return result;
   }
-  function offlinePlayerFormation(u){
+  function offlinePlayerFormation(u,selectedGenIds,requiredElement){
     var entries=new Array(6),packs=u&&u.petPackInfo&&u.petPackInfo.packArray||[];
-    for(var i=0;i<packs.length;i++){
-      var node=packs[i],pet=node&&node.pet;
-      if(!pet||!Number(pet.id))continue;
-      var position=Number(node.combatPos)||((i%6)+1);
-      if(position<1||position>6||entries[position-1])continue;
-      entries[position-1]=offlinePetFromEntry(pet,node);
+    if(Array.isArray(selectedGenIds)){
+      // Preserve six protocol positions; zero is an intentional empty slot.
+      entries.__offlineConfigValid=selectedGenIds.length===6&&selectedGenIds.some(function(id){return Number(id)>0;});
+      var used={};
+      for(var selectedIndex=0;selectedIndex<6;selectedIndex++){
+        var genId=Number(selectedGenIds[selectedIndex])||0;
+        if(!genId)continue;
+        var record=localPetOwnedRecord(u,genId);
+        if(!record||used[String(genId)]){entries.__offlineConfigValid=false;continue;}
+        used[String(genId)]=true;
+        var petCfg=null;
+        try{petCfg=GC.G().spiritConfig.getDes(Number(record.pet.id));}catch(_){}
+        if(!petCfg||(Number(requiredElement)>0&&Number(petCfg.element)!==Number(requiredElement))){
+          entries.__offlineConfigValid=false;continue;
+        }
+        var ownerNode=null;
+        for(var ownerIndex=0;ownerIndex<packs.length;ownerIndex++){
+          var ownerPet=packs[ownerIndex]&&packs[ownerIndex].pet;
+          if(ownerPet&&String(ownerPet.genId)===String(genId)){ownerNode=packs[ownerIndex];break;}
+        }
+        entries[selectedIndex]=offlinePetFromEntry(record.pet,ownerNode||{index:selectedIndex+1,equip:[]});
+      }
+    }else{
+      entries.__offlineConfigValid=true;
+      for(var i=0;i<packs.length;i++){
+        var node=packs[i],pet=node&&node.pet;
+        if(!pet||!Number(pet.id))continue;
+        var position=Number(node.combatPos)||((i%6)+1);
+        if(position<1||position>6||entries[position-1])continue;
+        entries[position-1]=offlinePetFromEntry(pet,node);
+      }
+      if(!entries.some(function(x){return !!x;})){
+        var fallback=petFrom(null);
+        entries[0]=offlinePetFromEntry(fallback);
+      }
     }
-    if(!entries.some(function(x){return !!x;})){
-      var fallback=petFrom(null);
-      entries[0]=offlinePetFromEntry(fallback);
+    var teamAtkDefPercent=entries.reduce(function(max,pet){
+      return Math.max(max,Number(pet&&pet.lifeTreeTeamAtkDefPercent)||0);
+    },0);
+    if(teamAtkDefPercent>0){
+      entries.forEach(function(pet){
+        if(!pet)return;
+        pet.attack=Math.round(pet.attack*(1+teamAtkDefPercent/100));
+        pet.defense=Math.round(pet.defense*(1+teamAtkDefPercent/100));
+      });
+      log("local life tree team battle bonus",teamAtkDefPercent);
     }
     return entries;
   }
@@ -2358,6 +2563,9 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         target.hp=Math.min(target.fullHp,target.hp+amount);target.status=rp.CombatSpiritStatus.ALIVE;
       }else{
         amount=Math.max(1,Math.floor((actor.attack*percent/100)-target.defense*0.2));
+        if(Number(target.lifeTreeDamageCapPercent)>0){
+          amount=Math.min(amount,Math.max(1,Math.floor(target.fullHp*Number(target.lifeTreeDamageCapPercent)/100)));
+        }
         target.hp=Math.max(0,target.hp-amount);
         if(target.hp<=0)target.status=rp.CombatSpiritStatus.DEAD;
       }
@@ -2367,9 +2575,10 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
     }
     steps.push(step);
   }
-  function makeOfflineCombat(stage){
+  function makeOfflineCombat(stage,teamIdOverride,selectedGenIds,requiredElement){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
-    var playerSide=offlinePlayerFormation(u),enemySide=offlinePveEnemies(stage);
+    var playerSide=offlinePlayerFormation(u,selectedGenIds,requiredElement),
+      enemySide=offlinePveEnemies(stage,teamIdOverride);
     var playerLevel=1;
     playerSide.forEach(function(p){if(p)playerLevel=Math.max(playerLevel,p.level);});
     var data=new rp.OneCombatData();data.type=rp.CombatType.PVE;
@@ -2393,13 +2602,26 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         }
       }
       var roundEnd=new rp.CombatOneStep();roundEnd.doWhat=rp.CombatStepType.ROUND_END;
-      roundEnd.round=r;roundEnd.source=0;roundEnd.changes=[];data.steps.push(roundEnd);
+      roundEnd.round=r;roundEnd.source=0;roundEnd.changes=[];
+      for(var regenSide=0;regenSide<2;regenSide++){
+        var regenEntries=regenSide===0?playerSide:enemySide;
+        for(var regenSlot=0;regenSlot<regenEntries.length;regenSlot++){
+          var regenPet=regenEntries[regenSlot],regenPercent=Number(regenPet&&regenPet.lifeTreeRegenPercent)||0;
+          if(!offlineAlive(regenPet)||regenPercent<=0||regenPet.hp>=regenPet.fullHp)continue;
+          var regenOldHp=regenPet.hp,regenAmount=Math.max(1,Math.floor(regenPet.fullHp*regenPercent/100));
+          regenPet.hp=Math.min(regenPet.fullHp,regenPet.hp+regenAmount);
+          roundEnd.changes.push(offlineCombatChange(regenSide,regenSlot,regenPet,
+            rp.CombatSkillEffect.HEAL,regenPet.hp-regenOldHp,regenOldHp));
+        }
+      }
+      data.steps.push(roundEnd);
       if(!offlineLivingCount(enemySide)||!offlineLivingCount(playerSide))break;
     }
     var playerAlive=offlineLivingCount(playerSide),enemyAlive=offlineLivingCount(enemySide);
     var playerCount=playerSide.filter(function(p){return !!p;}).length;
     var enemyCount=enemySide.filter(function(p){return !!p;}).length;
-    data.result=enemyCount===0||enemySide.__offlineConfigValid===false?rp.CombatResult.LOSE:
+    data.result=enemyCount===0||enemySide.__offlineConfigValid===false||
+      playerSide.__offlineConfigValid===false?rp.CombatResult.LOSE:
       enemyAlive===0?rp.CombatResult.WIN:playerAlive===0?rp.CombatResult.LOSE:
       playerSide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)>=
       enemySide.reduce(function(sum,p){return sum+(offlineAlive(p)?p.hp:0);},0)?rp.CombatResult.WIN:rp.CombatResult.LOSE;
@@ -2409,6 +2631,122 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
     log("local combat simulation","stage",stage,"rounds",round,"steps",data.steps.length,
       "players",playerAlive+"/"+playerCount,"enemies",enemyAlive+"/"+enemyCount,"result",data.result);
     return data;
+  }
+  function offlineTrialTowerOpenDay(type,day){
+    var days={1:[2,6],2:[1,6],3:[3,6],4:[4,0],5:[5,0]};
+    return type===0||(!!days[type]&&days[type].indexOf(Number(day))>=0);
+  }
+  function makeOfflineTrialTowerRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;
+    var info=normalizeOfflineTrialTower(u),operate=Math.floor(Number(req&&req.operate)||0);
+    r.ret=0;r.trialTowerInfo=info;r.actionArr=[];r.records=[];
+    if(operate===0){
+      log("local TrialTowerOperate overview",
+        Number(info.levels[0])||0,Number(info.dayCounts[0])||0,
+        Number(info.cangetTotalAward[0])||0);
+      return r;
+    }
+    if(operate===3){
+      r.ret=1;r.records=[];
+      log("local TrialTower history disabled: online player records unavailable");
+      return r;
+    }
+    if(operate===4){
+      var awardId=Math.floor(Number(req&&req.confId)||0),
+        awardCfg=awardId&&offlineTaskConfig("TRIAL_TOWER_AWARD_CONF",awardId),
+        awardType=Number(awardCfg&&awardCfg.type)||0,
+        highest=Number(info.levels[awardType])||0,
+        unlocked=Number(info.cangetTotalAward[awardType])||0,
+        claimed=Number(info.isgetTotalAward[awardType])||0;
+      if(!awardCfg||awardId<=claimed||awardId>unlocked||highest<Number(awardCfg&&awardCfg.level||0)){
+        r.ret=1;log("local TrialTower award rejected",awardId,awardType,claimed,unlocked,highest);
+        return r;
+      }
+      r.actionArr=offlineConfigActions(awardCfg.actionArr);
+      if(!r.actionArr.length){r.ret=1;log("local TrialTower award config empty",awardId);return r;}
+      applyOfflineActions(r.actionArr);
+      info.isgetTotalAward[awardType]=Math.max(claimed,awardId);
+      r.ret=0;r.trialTowerInfo=info;
+      log("local TrialTower milestone claimed",awardType,awardId,"rewards",r.actionArr.length);
+      save();return r;
+    }
+    if(operate!==1&&operate!==2){
+      r.ret=1;log("local TrialTower rejected unsupported operation",operate);return r;
+    }
+    var confId=String(req&&req.confId||""),parts=/^([0-5])_(\d+)$/.exec(confId),
+      type=parts?Number(parts[1]):-1,floor=parts?Number(parts[2]):0,
+      expectedFloor=type>=0?(Number(info.levels[type])||0)+1:0,
+      cfg=parts?offlineTaskConfig("TRIAL_TOWER_CONF",confId):null,
+      dailyLimit=type===0?50:10,used=type>=0?Number(info.dayCounts[type])||0:0;
+    if(!cfg||type<0||floor!==expectedFloor){
+      r.ret=1;log("local TrialTower rejected stale or missing floor",confId,expectedFloor,!!cfg);
+      return r;
+    }
+    if(used>=dailyLimit){
+      r.ret=1;log("local TrialTower rejected daily limit",type,used,dailyLimit);
+      return r;
+    }
+    if(type>0){
+      var openDay=new Date(Number(DM&&DM.serverTime)||Date.now()).getDay();
+      if((Number(info.levels[0])||0)<200){
+        r.ret=1;log("local TrialTower element track locked by comprehensive floor",type,
+          Number(info.levels[0])||0);return r;
+      }
+      if(!offlineTrialTowerOpenDay(type,openDay)){
+        r.ret=1;log("local TrialTower element track closed today",type,openDay);return r;
+      }
+    }
+    var teamId=Number(cfg.fightId)||0,team=teamId&&GC.G().PVE_TEAM_CONF.getDes(teamId);
+    if(!team||!Array.isArray(team.petId)||!team.petId.some(function(id){return Number(id)>0;})){
+      r.ret=1;log("local TrialTower rejected missing enemy team",confId,teamId);return r;
+    }
+    if(operate===2){
+      var totalScore=Number(u.baseInfo&&u.baseInfo.totalFightScore)||0;
+      if(Number(cfg.canSkipped)!==1||totalScore<2*(Number(cfg.fightScore)||0)){
+        r.ret=1;log("local TrialTower skip rejected",confId,
+          Number(cfg.canSkipped)||0,totalScore,Number(cfg.fightScore)||0);return r;
+      }
+      r.actionArr=offlineConfigActions(cfg.actionArr);
+      if(!r.actionArr.length){r.ret=1;log("local TrialTower skip reward config empty",confId);return r;}
+      applyOfflineActions(r.actionArr);
+      info.levels[type]=floor;info.dayCounts[type]=used+1;
+      updateOfflineTrialTowerMilestones(info);
+      r.ret=0;r.trialTowerInfo=info;
+      log("local TrialTower skipped",confId,"dayCount",info.dayCounts[type],
+        "rewards",r.actionArr.length,"milestone",info.cangetTotalAward[type]);
+      syncOfflineTaskProgress(u);save();return r;
+    }
+    var genIds=Array.isArray(req&&req.genId)?req.genId.slice(0,6).map(function(id){return Number(id)||0;}):[];
+    if(genIds.length!==6||!genIds.some(function(id){return id>0;})){
+      r.ret=1;log("local TrialTower battle rejected missing six-slot formation",confId,genIds.length);return r;
+    }
+    var combat=makeOfflineCombat(floor,teamId,genIds,type);
+    if(!combat||team.__offlineConfigValid===false){
+      r.ret=1;log("local TrialTower battle rejected invalid combat config",confId,teamId);return r;
+    }
+    combat.players[1].name=(["综合","水系","火系","草系","光系","暗系"][type]||"试炼")+"试炼"+floor+"层";
+    r.fightData=combat;
+    if(combat.result!==rp.CombatResult.WIN){
+      r.ret=0;r.trialTowerInfo=info;r.actionArr=[];
+      log("local TrialTower battle lost",confId,"players",combat.ownDeadPetNum,
+        "enemies",combat.enermyDeadPetNum,"progress retained");
+      return r;
+    }
+    r.actionArr=offlineConfigActions(cfg.actionArr);
+    if(!r.actionArr.length){
+      r.ret=1;r.fightData=null;
+      log("local TrialTower battle rejected empty rewards",confId);return r;
+    }
+    combat.rewards=r.actionArr;
+    applyOfflineActions(r.actionArr);
+    info.levels[type]=floor;info.dayCounts[type]=used+1;
+    updateOfflineTrialTowerMilestones(info);
+    r.ret=0;r.trialTowerInfo=info;
+    log("local TrialTower victory",confId,"dayCount",info.dayCounts[type],
+      "rewards",r.actionArr.length,"milestone",info.cangetTotalAward[type]);
+    syncOfflineTaskProgress(u);save();return r;
   }
   function makeOfflineSceneFight(req){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
@@ -2463,6 +2801,16 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       log("local save restored nature power",1,
         Number(restoredNaturePower&&restoredNaturePower.level)||0,
         Number(restoredNaturePower&&restoredNaturePower.exprSum)||0);
+      var restoredLifeTree=normalizeOfflineLifeTree(current);
+      log("local save restored life tree",Number(restoredLifeTree.levels[0])||0,
+        Number(restoredLifeTree.levels[1])||0,Number(restoredLifeTree.levels[2])||0,
+        Number(restoredLifeTree.levels[3])||0,Number(restoredLifeTree.levels[4])||0,
+        Number(restoredLifeTree.levels[5])||0);
+      var restoredTrialTower=normalizeOfflineTrialTower(current);
+      log("local save restored trial tower",Number(restoredTrialTower.levels[0])||0,
+        Number(restoredTrialTower.dayCounts[0])||0,
+        Number(restoredTrialTower.cangetTotalAward[0])||0,
+        Number(restoredTrialTower.isgetTotalAward[0])||0);
       log("local save restored",String(current.baseInfo.moneyInfo&&current.baseInfo.moneyInfo.gold||0),Number(current.newSceneGradeInfo&&current.newSceneGradeInfo.sceneLevel||1));
       var restoredPet=current.petPackInfo&&current.petPackInfo.packArray&&current.petPackInfo.packArray[0]&&current.petPackInfo.packArray[0].pet;
       log("local save restored pet",Number(restoredPet&&restoredPet.level||0),String(restoredPet&&restoredPet.hp||0),String(restoredPet&&restoredPet.attack||0),String(restoredPet&&restoredPet.defense||0));
@@ -2604,7 +2952,8 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       newStoreInfo:"NewStoreInfo",legendaryChallengeInfo:"LegendaryChallengeInfo",offerRewardInfo:"OfferRewardInfo",
       eliteCallInfo:"EliteCallInfo",limitTimeAdvent:"LimitTimeAdventInfo",weekCircles:"UserWeekCircleInfo",
       newVersionFixInfo:"NewVersionFixInfo",newTaskInfo:"DBNewTaskInfo",userDateAttrInfo:"UserDataAttrInfo",
-      naturePowerInfo:"NaturePowerInfo",collectCardInfo:"CardCollectInfo",checkInfo2:"CheckInInfo2",
+      naturePowerInfo:"NaturePowerInfo",
+      collectCardInfo:"CardCollectInfo",checkInfo2:"CheckInInfo2",
       checkInfoCycle:"CheckInInfo2",mibaoPackInfo:"MibaoPackInfo",mibaoLotteryInfo:"MibaoLotteryInfo"
     };
     Object.keys(typed).forEach(function(k){try{u[k]=new rp[typed[k]]();}catch(e){log("proto field init",k,e);}});
@@ -2753,14 +3102,21 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         var petIndex=Number(req&&req.petIndex);
         var petNode=attrUser&&attrUser.petPackInfo&&attrUser.petPackInfo.packArray&&attrUser.petPackInfo.packArray[petIndex];
         if(!petNode&&attrUser&&attrUser.petPackInfo&&attrUser.petPackInfo.packArray&&attrUser.petPackInfo.packArray[petIndex-1])petNode=attrUser.petPackInfo.packArray[petIndex-1];
-        var gearBonus=localEquipmentBonusForNode(petNode);
-        r.ret=0;r.attr=localApplyEquipmentBonusToAttr(new rp.PkAttrInfo(),gearBonus);
+        var gearBonus=localEquipmentBonusForNode(petNode),
+          treeBonus=localLifeTreeBonusForPet(attrUser,petNode&&petNode.pet),
+          totalBonus={hp:gearBonus.hp+treeBonus.hp,attack:gearBonus.attack+treeBonus.attack,
+            defense:gearBonus.defense+treeBonus.defense,
+            hpPercent:gearBonus.hpPercent+treeBonus.hpPercent,
+            attackPercent:gearBonus.attackPercent+treeBonus.attackPercent,
+            defensePercent:gearBonus.defensePercent+treeBonus.defensePercent};
+        r.ret=0;r.attr=localApplyEquipmentBonusToAttr(new rp.PkAttrInfo(),totalBonus);
         r.teamPkAttr=new rp.PkAttrInfo();
         r.evaluteHpAbs=0;r.evaluteHpPersent=0;
         r.evaluteAttackAbs=0;r.evaluteAttackPersent=0;
         r.evaluteDefenseAbs=0;r.evaluteDefensePersent=0;
         log("local pet attributes calculated",petIndex,
-          "equipment",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0);
+          "equipment",Number(gearBonus.hp)||0,Number(gearBonus.attack)||0,Number(gearBonus.defense)||0,
+          "lifeTree",Number(treeBonus.hp)||0,Number(treeBonus.hpPercent)||0);
       }
       else if(Resp===rp.PetCrystalInfoRsp){
         r=makeOfflinePetCrystalInfoRsp(r);
@@ -2837,6 +3193,12 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       }
       else if(Resp===rp.NewTaskInfoOperateRsp){
         r=makeOfflineTaskOperate(req,r);
+      }
+      else if(Resp===rp.TrialTowerOperateRsp){
+        r=makeOfflineTrialTowerRsp(req,r);
+      }
+      else if(Resp===rp.LifeTreeOperateRsp){
+        r=makeOfflineLifeTreeOperateRsp(req,r);
       }
       else if(Resp===rp.NaturePowerOperateRsp){
         r=makeOfflineNaturePowerRsp(req,r);
@@ -3136,6 +3498,201 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       save();
       return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,paid:paid.ret};
     },
+    selfTestTrialTower:function(){
+      ensure();
+      var u=DM.G().userInfo,info=normalizeOfflineTrialTower(u),
+        firstCfg=offlineTaskConfig("TRIAL_TOWER_CONF","0_1"),
+        beforeScore=Number(u.baseInfo.totalFightScore)||0;
+      var overviewReq=new rp.TrialTowerOperateReq();overviewReq.operate=0;
+      var overview=makeOfflineTrialTowerRsp(overviewReq,new rp.TrialTowerOperateRsp());
+      var overviewOk=Number(overview.ret)===0&&overview.trialTowerInfo&&
+        [0,1,2,3,4,5].every(function(type){return overview.trialTowerInfo.levels[type]!=null;});
+      if(!firstCfg||!GC.G().PVE_TEAM_CONF.getDes(Number(firstCfg.fightId))){
+        log("local trial tower self-test FAIL missing first floor or team config",
+          !!firstCfg,Number(firstCfg&&firstCfg.fightId)||0);
+        return {pass:false};
+      }
+      var start=u.petStorageInfo.petArray.length;
+      if(!localAddPetToStorage(u,515141,6,6,400)){
+        log("local trial tower self-test FAIL could not seed strong trial pets");
+        return {pass:false};
+      }
+      var seeded=u.petStorageInfo.petArray.slice(start),genIds=[];
+      seeded.forEach(function(pet){
+        pet.hp=long(5000000);pet.attack=long(5000000);pet.defense=long(1000000);
+        pet.fightScore=long(1.1*5000000+10*5000000+10*1000000);
+        genIds.push(Number(pet.genId));
+      });
+      var sparseFormation=offlinePlayerFormation(u,[genIds[0],0,genIds[1],0,0,genIds[2]],0);
+      var sparseOk=!!sparseFormation.__offlineConfigValid&&
+        Number(sparseFormation[0]&&sparseFormation[0].id)===Number(seeded[0].id)&&
+        !sparseFormation[1]&&Number(sparseFormation[2]&&sparseFormation[2].id)===Number(seeded[1].id)&&
+        !sparseFormation[3]&&!sparseFormation[4]&&
+        Number(sparseFormation[5]&&sparseFormation[5].id)===Number(seeded[2].id);
+      var scheduleOk=[0,1,2,3,4,5].every(function(day){
+        return offlineTrialTowerOpenDay(0,day);
+      })&&offlineTrialTowerOpenDay(1,2)&&offlineTrialTowerOpenDay(1,6)&&
+        !offlineTrialTowerOpenDay(1,4)&&offlineTrialTowerOpenDay(2,1)&&
+        offlineTrialTowerOpenDay(3,3)&&offlineTrialTowerOpenDay(4,4)&&
+        offlineTrialTowerOpenDay(5,5);
+      info.levels[0]=0;info.dayCounts[0]=0;
+      u.baseInfo.totalFightScore=long(Math.max(beforeScore,999999999999));
+      var fightReq=new rp.TrialTowerOperateReq();fightReq.operate=1;
+      fightReq.confId="0_1";fightReq.genId=genIds;
+      var fight=makeOfflineTrialTowerRsp(fightReq,new rp.TrialTowerOperateRsp());
+      var fightOk=Number(fight.ret)===0&&fight.fightData&&
+        Number(fight.fightData.result)===Number(rp.CombatResult.WIN)&&
+        Number(info.levels[0])===1&&Number(info.dayCounts[0])===1&&
+        Array.isArray(fight.actionArr)&&fight.actionArr.length===firstCfg.actionArr.length;
+      var staleReq=new rp.TrialTowerOperateReq();staleReq.operate=1;
+      staleReq.confId="0_1";staleReq.genId=genIds;
+      var stale=makeOfflineTrialTowerRsp(staleReq,new rp.TrialTowerOperateRsp());
+      info.levels[0]=240;info.dayCounts[0]=1;
+      var skipReq=new rp.TrialTowerOperateReq();skipReq.operate=2;skipReq.confId="0_241";
+      var skip=makeOfflineTrialTowerRsp(skipReq,new rp.TrialTowerOperateRsp());
+      var skipOk=Number(skip.ret)===0&&Number(info.levels[0])===241&&
+        Number(info.dayCounts[0])===2&&Number(info.cangetTotalAward[0])>=100001&&
+        Array.isArray(skip.actionArr)&&skip.actionArr.length>0;
+      var awardBefore=Number(info.isgetTotalAward[0])||0,
+        awardReq=new rp.TrialTowerOperateReq();awardReq.operate=4;awardReq.confId="100001";
+      var award=makeOfflineTrialTowerRsp(awardReq,new rp.TrialTowerOperateRsp());
+      var awardOk=Number(award.ret)===0&&Number(info.isgetTotalAward[0])===100001&&
+        award.actionArr.length>0;
+      var duplicateAward=makeOfflineTrialTowerRsp(awardReq,new rp.TrialTowerOperateRsp()),
+        duplicateOk=Number(duplicateAward.ret)!==0&&Number(info.isgetTotalAward[0])===100001;
+      var historyReq=new rp.TrialTowerOperateReq();historyReq.operate=3;historyReq.confId="0_1";
+      var history=makeOfflineTrialTowerRsp(historyReq,new rp.TrialTowerOperateRsp()),
+        historyOk=Number(history.ret)!==0&&(!history.records||history.records.length===0);
+      u.baseInfo.totalFightScore=long(beforeScore);
+      seeded.forEach(function(pet){
+        var ix=u.petStorageInfo.petArray.indexOf(pet);
+        if(ix>=0)u.petStorageInfo.petArray.splice(ix,1);
+      });
+      var ok=overviewOk&&fightOk&&sparseOk&&scheduleOk&&Number(stale.ret)!==0&&skipOk&&
+        awardOk&&duplicateOk&&historyOk;
+      log("local trial tower self-test",ok?"PASS":"FAIL",
+        "overview",overviewOk?"PASS":"FAIL","battle",fightOk?"PASS":"FAIL",
+        "sparse",sparseOk?"PASS":"FAIL","schedule",scheduleOk?"PASS":"FAIL",
+        "stale",stale.ret,"skip",skip.ret,"award",award.ret,
+        "duplicate",duplicateAward.ret,"history",history.ret,
+        "level",Number(info.levels[0])||0,"dayCount",Number(info.dayCounts[0])||0,
+        "milestone",Number(info.cangetTotalAward[0])||0);
+      save();
+      try{
+        if(typeof mdl!=="undefined"&&mdl.TrialTower&&mdl.TrialTower.Entry&&mdl.TrialTower.Entry.show){
+          mdl.TrialTower.Entry.show();
+          log("local TrialTower actual entry opened");
+        }else log("local TrialTower actual entry unavailable");
+      }catch(e){log("local TrialTower actual entry error",e&&e.stack||e);}
+      return {pass:ok,level:Number(info.levels[0])||0,skip:skip.ret,
+        award:award.ret,duplicate:duplicateAward.ret};
+    },
+    selfTestLifeTree:function(){
+      ensure();
+      var u=DM.G().userInfo,info=normalizeOfflineLifeTree(u);
+      var overviewReq=new rp.LifeTreeOperateReq();overviewReq.operate=0;
+      var overview=makeOfflineLifeTreeOperateRsp(overviewReq,new rp.LifeTreeOperateRsp());
+      var overviewOk=Number(overview.ret)===0&&overview.lifeTreeInfo&&
+        [0,1,2,3,4,5].every(function(type){return overview.lifeTreeInfo.levels[type]!=null;});
+      log("local life tree self-test start","base",Number(info.levels[0])||0,
+        "roles",[1,2,3,4,5].map(function(id){return Number(info.levels[id])||0;}).join(","));
+      var totalSeeds=0,totalMarks=0;
+      for(var level=0;level<10;level++){
+        var baseId="0_"+level,cfg=offlineTaskConfig("LIFE_TREE_CONF",baseId),
+          baseCost=cfg&&cfg.delAction&&cfg.delAction.params;
+        if(!cfg||!Array.isArray(baseCost)||baseCost.length<2){
+          log("local life tree self-test FAIL missing base config",baseId,
+            !!cfg,!!(cfg&&cfg.delAction),Array.isArray(baseCost));
+          return {pass:false,reason:"missing base config "+baseId};
+        }
+        totalSeeds+=Number(baseCost[1])||0;
+      }
+      for(var role=1;role<=5;role++){
+        for(var roleLevel=0;roleLevel<10;roleLevel++){
+          var roleIdKey=role+"_"+roleLevel,roleCfg=offlineTaskConfig("LIFE_TREE_CONF",roleIdKey),
+            roleCost=roleCfg&&roleCfg.delAction&&roleCfg.delAction.params;
+          if(!roleCfg||!Array.isArray(roleCost)||roleCost.length<2){
+            log("local life tree self-test FAIL missing role config",roleIdKey,
+              !!roleCfg,!!(roleCfg&&roleCfg.delAction),Array.isArray(roleCost));
+            return {pass:false,reason:"missing role config "+roleIdKey};
+          }
+          totalMarks+=Number(roleCost[1])||0;
+        }
+      }
+      // Seed only the exact configured materials needed by this deterministic test.
+      addLocalItem(1001017,totalSeeds+2);
+      addLocalItem(1001018,totalMarks+2);
+      log("local life tree self-test seeded materials",totalSeeds,totalMarks,
+        Number(u.itemPackInfo.idMap[1001017]&&u.itemPackInfo.idMap[1001017].count)||0,
+        Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0);
+      var baseStart=Number(info.levels[0])||0,basePass=baseStart===0;
+      if(basePass){
+        for(var next=0;next<10;next++){
+          var req=new rp.LifeTreeOperateReq();req.operate=1;req.confId="0_"+next;
+          var rsp=makeOfflineLifeTreeOperateRsp(req,new rp.LifeTreeOperateRsp());
+          if(Number(rsp.ret)!==0||Number(info.levels[0])!==next+1){basePass=false;break;}
+        }
+      }else basePass=false;
+      var rolePass=basePass;
+      if(rolePass){
+        for(var roleId=1;roleId<=5;roleId++){
+          for(var roleLevel=0;roleLevel<10;roleLevel++){
+            var roleReq=new rp.LifeTreeOperateReq();roleReq.operate=1;
+            roleReq.confId=roleId+"_"+roleLevel;
+            var roleRsp=makeOfflineLifeTreeOperateRsp(roleReq,new rp.LifeTreeOperateRsp());
+            if(Number(roleRsp.ret)!==0||Number(info.levels[roleId])!==roleLevel+1){
+              rolePass=false;break;
+            }
+          }
+          if(!rolePass)break;
+        }
+      }
+      var staleBefore=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0,
+        staleReq=new rp.LifeTreeOperateReq();staleReq.operate=1;staleReq.confId="1_0";
+      var stale=makeOfflineLifeTreeOperateRsp(staleReq,new rp.LifeTreeOperateRsp()),
+        staleAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
+      var capBefore=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0,
+        capReq=new rp.LifeTreeOperateReq();capReq.operate=1;capReq.confId="1_10";
+      var gate=makeOfflineLifeTreeOperateRsp(capReq,new rp.LifeTreeOperateRsp()),
+        capAfter=Number(u.itemPackInfo.idMap[1001018]&&u.itemPackInfo.idMap[1001018].count)||0;
+      var gateOk=Number(gate.ret)!==0&&Number(info.levels[0])===10&&
+        capBefore===capAfter&&Number(info.levels[1])===10;
+      var petBonus=localLifeTreeBonusForPet(u,u.petPackInfo.packArray[0]&&u.petPackInfo.packArray[0].pet),
+        controlBonus=localLifeTreeBonusForPet(u,{id:3102}),
+        defenseBonus=localLifeTreeBonusForPet(u,{id:3105}),
+        healerBonus=localLifeTreeBonusForPet(u,{id:3103});
+      var attrOk=Number(petBonus.hp)>=1000000&&Number(petBonus.attack)>=200000&&
+        Number(petBonus.defense)>=200000&&Number(petBonus.hpPercent)>=1000&&
+        Number(controlBonus.damageCapPercent)>=100&&
+        Number(defenseBonus.regenPercent)>=4&&
+        Number(healerBonus.teamAtkDefPercent)>=1;
+      log("local life tree self-test attributes",
+        Number(petBonus.hp)||0,Number(petBonus.attack)||0,Number(petBonus.defense)||0,
+        Number(petBonus.hpPercent)||0,
+        Number(controlBonus.damageCapPercent)||0,
+        Number(defenseBonus.regenPercent)||0,
+        Number(healerBonus.teamAtkDefPercent)||0);
+      log("local life tree self-test attributes",
+        Number(petBonus.hp)||0,Number(petBonus.attack)||0,Number(petBonus.defense)||0,
+        Number(petBonus.hpPercent)||0,
+        Number(controlBonus.damageCapPercent)||0,
+        Number(defenseBonus.regenPercent)||0,
+        Number(healerBonus.teamAtkDefPercent)||0);
+      var oldTrainerLevel=Number(u.baseInfo.level)||1;
+      u.baseInfo.level=Math.max(50,oldTrainerLevel);
+      var ok=overviewOk&&basePass&&rolePass&&Number(stale.ret)!==0&&
+        staleBefore===staleAfter&&gateOk&&attrOk;
+      log("local life tree self-test",ok?"PASS":"FAIL",
+        "overview",overviewOk?"PASS":"FAIL","base",Number(info.levels[0])||0,
+        "roles",[1,2,3,4,5].map(function(id){return Number(info.levels[id])||0;}).join(","),
+        "stale",stale.ret,"cap",gate.ret,"attrs",attrOk?"PASS":"FAIL",
+        "passives",Number(controlBonus.damageCapPercent)||0,
+        Number(defenseBonus.regenPercent)||0,Number(healerBonus.teamAtkDefPercent)||0,
+        "trainerLevel",u.baseInfo.level);
+      save();
+      return {pass:ok,base:Number(info.levels[0])||0,stale:stale.ret,cap:gate.ret,
+        attrs:attrOk,trainerLevel:u.baseInfo.level};
+    },
     selfTestNaturePower:function(){
       ensure();
       var u=DM.G().userInfo,info=normalizeOfflineNaturePower(u),entry=info.naturePowers[1],
@@ -3422,14 +3979,14 @@ OVERLAY = """
 <div id="offline-task-button">任务</div>
 <div id="offline-return-button">返回主城</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="nature-power-test">验证自然之力</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="nature-power-test">验证自然之力</button><button data-act="life-tree-test">验证生命之树</button><button data-act="trial-tower-test">验证试炼之塔</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button"),rb=document.getElementById("offline-return-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 if(rb)rb.onclick=function(){if(window.OfflineGame)OfflineGame.returnToAdventure();};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="nature-power-test")OfflineGame.selfTestNaturePower();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="nature-power-test")OfflineGame.selfTestNaturePower();if(a==="life-tree-test")OfflineGame.selfTestLifeTree();if(a==="trial-tower-test")OfflineGame.selfTestTrialTower();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """
