@@ -292,6 +292,15 @@ timeout 20s adb shell screencap -p /sdcard/offline-trial-tower.png
 timeout 30s adb pull /sdcard/offline-trial-tower.png tmp/offline-test/offline-trial-tower.png > /dev/null 2>&1
 timeout 20s adb shell screencap -p /sdcard/offline-life-tree.png
 timeout 30s adb pull /sdcard/offline-life-tree.png tmp/offline-test/offline-life-tree.png > /dev/null 2>&1
+# Re-open the offline menu and run five rounds of Divination Trial protocol tests.
+timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-divination-menu-open.txt 2>&1
+sleep 2
+timeout 10s adb shell input tap 150 1760 > tmp/offline-test/offline-divination-trial-self-test.txt 2>&1
+sleep 8
+timeout 10s adb shell input tap 80 50 > tmp/offline-test/offline-divination-menu-close.txt 2>&1
+sleep 3
+timeout 20s adb shell screencap -p /sdcard/offline-divination-trial.png
+timeout 30s adb pull /sdcard/offline-divination-trial.png tmp/offline-test/offline-divination-trial.png > /dev/null 2>&1
 # Cold-restart again to prove the item and crystal changes themselves survive.
 timeout 10s adb shell am force-stop com.ruirui.cjjlq
 sleep 3
@@ -371,6 +380,11 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && grep -q "local save restored life tree 10 10 10 10 10 10" tmp/offline-test/logcat.txt \
   && grep -q "local LifeTreeOperate overview 6 10" tmp/offline-test/logcat.txt \
   && grep -q "local trial tower self-test PASS overview PASS battle PASS sparse PASS schedule PASS stale 1 skip 0 award 0 duplicate 1 history 1 level 241 dayCount 2 milestone 100048" tmp/offline-test/logcat.txt \
+  && grep -q "local divination trial self-test PASS config PASS draws 15 claims 5 gates 5 duplicates 10 petRewards 5 completed PASS" tmp/offline-test/logcat.txt \
+  && grep -q "local save restored divination trial 0 0 0 0 0 1,1,1,0,1" tmp/offline-test/logcat.txt \
+  && grep -q "local DivinationTrial actual entry opened" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: atlas/Divine.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "GroupLoader.*Divine.*Load Error" tmp/offline-test/logcat.txt \
   && grep -q "local save restored trial tower 241 2 100048 100001" tmp/offline-test/logcat.txt \
   && grep -q "local TrialTower actual entry opened" tmp/offline-test/logcat.txt \
   && grep -q "local save restored star-up pet 3" tmp/offline-test/logcat.txt \
@@ -458,6 +472,7 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && test -s tmp/offline-test/offline-nature-power.png \
   && test -s tmp/offline-test/offline-life-tree.png \
   && test -s tmp/offline-test/offline-trial-tower.png \
+  && test -s tmp/offline-test/offline-divination-trial.png \
   && test -s tmp/offline-test/offline-town-screen.png \
   && test -s tmp/offline-test/offline-life-tree-real-screen.png \
   && test -s tmp/offline-test/offline-life-tree-role-screen.png \

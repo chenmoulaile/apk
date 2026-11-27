@@ -39,6 +39,7 @@ OFFLINE_UI_SKIN_PREFIXES = (
     # Life Tree panel skins are requested by the runtime group name "LifeTree".
     "lifetree/",
     "trialtower/",
+    "divine/",
 )
 
 def is_offline_ui_skin(path: str) -> bool:
@@ -99,6 +100,9 @@ CORE_FILES = [
     "res/items/1/1001018.png",
     "atlas/TrialTower.atlas",
     "atlas/TrialTower/bg2.jpg",
+    # Divination Trial's UI is loaded by the runtime group name "Divine".
+    "atlas/Divine.atlas",
+    "atlas/Divine/bg1.jpg",
     # Daily/weekly task progress icons and the summon task reward image.
     "res/icons/rhyd_02.png",
     "res/icons/zhyd_01.png",

@@ -164,6 +164,7 @@ HOOK = r"""
     normalizeOfflineNaturePower(u);
     normalizeOfflineLifeTree(u);
     normalizeOfflineTrialTower(u);
+    normalizeOfflineDivinationTrial(u);
   }
   function petFrom(p){
     var x=new rp.PetEntry();
@@ -346,6 +347,41 @@ HOOK = r"""
       info.cangetTotalAward[type]=Math.max(Number(info.cangetTotalAward[type])||0,maxId);
     }
   }
+  function normalizeOfflineDivinationTrial(u){
+    if(!u)return null;
+    if(!u.activityInfo)u.activityInfo=new rp.ActivityInfo();
+    if(!u.activityInfo.divinationTrialInfo)
+      u.activityInfo.divinationTrialInfo=new rp.DivinationTrialInfo();
+    var info=u.activityInfo.divinationTrialInfo;
+    info.roundNum=Math.max(0,Math.min(5,Math.floor(Number(info.roundNum)||0)));
+    ["confIdsOne","confIdsTwo","confIdsThree"].forEach(function(key){
+      if(!Array.isArray(info[key]))info[key]=[];
+    });
+    if(!info.tasks||typeof info.tasks!=="object")info.tasks={};
+    var tower=u.activityInfo.trialTowerInfo||{levels:{}},
+      scene=Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||
+        Number(u.baseInfo&&u.baseInfo.sceneLevel)||0,
+      trainer=Number(u.baseInfo&&u.baseInfo.level)||0,
+      rows=offlineTaskList("DIVINATION_TRIAL_TASK_CONF");
+    rows.forEach(function(cfg){
+      var id=Number(cfg.taskId)||0;
+      if(!id)return;
+      var node=info.tasks[id];
+      if(!node)node=info.tasks[id]=new rp.NewTaskNode();
+      var cond=cfg.cond||{},params=Array.isArray(cond.params)?cond.params:[],
+        type=Number(cond.taskType),need=Math.max(1,Number(cond.needNum)||1),progress=0;
+      if(type===30){
+        progress=scene>=Number(params[0]||0)?need:0;
+      }else if(type===77){
+        progress=trainer>=Number(params[0]||0)?need:0;
+      }else if(type===24){
+        var towerType=Number(params[0])||0,towerLevel=Number(params[1])||0;
+        progress=(Number(tower.levels&&tower.levels[towerType])||0)>=towerLevel?need:0;
+      }
+      node.finishNum=Math.max(Number(node.finishNum)||0,progress);
+    });
+    return info;
+  }
   function normalizeOfflineNaturePower(u){
     if(!u)return null;
     if(!u.naturePowerInfo)u.naturePowerInfo=new rp.NaturePowerInfo();
@@ -493,7 +529,9 @@ HOOK = r"""
     return info;
   }
   function syncOfflineTaskProgress(u){
-    if(!u||!u.newTaskInfo)return;
+    if(!u)return;
+    normalizeOfflineDivinationTrial(u);
+    if(!u.newTaskInfo)return;
     var info=u.newTaskInfo;
     var daily=info.dailyTask,weekly=info.weekTask,main=info.mainTask;
     if(daily&&daily.tasks){
@@ -2748,6 +2786,129 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       "rewards",r.actionArr.length,"milestone",info.cangetTotalAward[type]);
     syncOfflineTaskProgress(u);save();return r;
   }
+  function localDivinationConfById(id){
+    var direct=offlineTaskConfig("DIVINATION_TRIAL_CONF",id);
+    if(direct&&Number(direct.id)===Number(id))return direct;
+    var rows=offlineTaskList("DIVINATION_TRIAL_CONF");
+    for(var i=0;i<rows.length;i++)
+      if(Number(rows[i]&&rows[i].id)===Number(id))return rows[i];
+    return null;
+  }
+  function localDivinationDrawIds(roundNum,boxIndex){
+    var rows=offlineTaskList("DIVINATION_TRIAL_CONF").filter(function(row){
+      return Number(row.roundNum)===Number(roundNum);
+    });
+    var jackpots=rows.filter(function(row){return Number(row.jackpotType)===1;}),
+      common=rows.filter(function(row){return Number(row.jackpotType)!==1;});
+    if(rows.length<10||!jackpots.length||common.length<9)return null;
+    var seed=localUseSeed(16787015+Number(roundNum)*3+Number(boxIndex),
+      Number(offlineTaskMeta.divinationTrialSerial)||1);
+    var chosen=[],jackpot=localWeightedReward(jackpots,"weights",localUseSeed(seed,1));
+    if(!jackpot)return null;
+    chosen.push(jackpot);
+    var pool=common.slice();
+    for(var i=0;i<9;i++){
+      var row=localWeightedReward(pool,"weights",localUseSeed(seed,i+2));
+      if(!row)return null;
+      chosen.push(row);
+      pool.splice(pool.indexOf(row),1);
+    }
+    // Keep a single configured jackpot in each ten-pull because the original UI
+    // uses that entry as the selectable spirit; the other nine are display rewards.
+    for(var j=chosen.length-1;j>0;j--){
+      var swap=localUseSeed(seed,100+j)%(j+1),tmp=chosen[j];
+      chosen[j]=chosen[swap];chosen[swap]=tmp;
+    }
+    return chosen.map(function(row){return Number(row.id)||0;});
+  }
+  function makeOfflineDivinationTrialRsp(req,r){
+    var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
+    if(!u){r.ret=1;return r;}
+    current=u;
+    var info=normalizeOfflineDivinationTrial(u),operate=Math.floor(Number(req&&req.operate)||0),
+      slot=Math.floor(Number(req&&req.awardIdx)||0),
+      keys=["confIdsOne","confIdsTwo","confIdsThree"],
+      roundNum=Number(info.roundNum)||0;
+    r.ret=0;r.confIds=[];r.divinationTrialInfo=info;
+    if(operate===0){
+      log("local DivinationTrial overview",roundNum,
+        info.confIdsOne.length,info.confIdsTwo.length,info.confIdsThree.length,
+        [1,2,3,4,5].map(function(id){
+          return Number(info.tasks[id]&&info.tasks[id].finishNum)||0;
+        }).join(","));
+      return r;
+    }
+    if(roundNum>=5||slot<0||slot>2){
+      r.ret=1;log("local DivinationTrial rejected completed round or bad slot",operate,roundNum,slot);
+      return r;
+    }
+    if(operate===1){
+      if(info[keys[slot]].length){
+        r.ret=1;log("local DivinationTrial rejected duplicate draw",roundNum+1,slot);
+        return r;
+      }
+      var ids=localDivinationDrawIds(roundNum+1,slot);
+      if(!ids||ids.length!==10){
+        r.ret=1;log("local DivinationTrial draw config incomplete",roundNum+1,slot);
+        return r;
+      }
+      var jackpotCount=ids.filter(function(id){
+        var cfg=localDivinationConfById(id);
+        return cfg&&Number(cfg.jackpotType)===1;
+      }).length;
+      if(jackpotCount!==1){
+        r.ret=1;log("local DivinationTrial draw rejected invalid jackpot count",roundNum+1,slot,jackpotCount);
+        return r;
+      }
+      info[keys[slot]]=ids.slice();
+      r.confIds=ids.slice();r.divinationTrialInfo=info;
+      log("local DivinationTrial drew",roundNum+1,slot,ids.join(","));
+      save();return r;
+    }
+    if(operate===2){
+      if(info.confIdsOne.length!==10||info.confIdsTwo.length!==10||info.confIdsThree.length!==10){
+        r.ret=1;log("local DivinationTrial selection rejected incomplete draws",roundNum+1,
+          info.confIdsOne.length,info.confIdsTwo.length,info.confIdsThree.length);
+        return r;
+      }
+      syncOfflineTaskProgress(u);
+      var taskCfg=offlineTaskList("DIVINATION_TRIAL_TASK_CONF").filter(function(row){
+        return Number(row.roundNum)===roundNum+1;
+      })[0],taskNode=taskCfg&&info.tasks[Number(taskCfg.taskId)],
+        need=Number(taskCfg&&taskCfg.cond&&taskCfg.cond.needNum)||1;
+      if(!taskCfg||!taskNode||Number(taskNode.finishNum)<need){
+        r.ret=1;log("local DivinationTrial selection rejected task gate",roundNum+1,
+          Number(taskNode&&taskNode.finishNum)||0,need);
+        return r;
+      }
+      var selectedIds=info[keys[slot]],selectedRows=selectedIds.map(localDivinationConfById);
+      if(selectedRows.some(function(row){return !row||Number(row.roundNum)!==roundNum+1;})){
+        r.ret=1;log("local DivinationTrial selection rejected stale config",roundNum+1,slot);
+        return r;
+      }
+      var selectedJackpots=selectedRows.filter(function(row){return Number(row.jackpotType)===1;});
+      if(selectedJackpots.length!==1||!selectedJackpots[0].awardAction||
+        Number(selectedJackpots[0].awardAction.type)!==100005){
+        r.ret=1;log("local DivinationTrial selection rejected jackpot config",roundNum+1,slot);
+        return r;
+      }
+      var reward=offlineConfigActions([selectedJackpots[0].awardAction]);
+      if(reward.length!==1){
+        r.ret=1;log("local DivinationTrial reward action missing",roundNum+1,slot);
+        return r;
+      }
+      applyOfflineActions(reward);
+      info.roundNum=roundNum+1;
+      info.confIdsOne=[];info.confIdsTwo=[];info.confIdsThree=[];
+      r.ret=0;r.divinationTrialInfo=info;
+      log("local DivinationTrial selected",roundNum+1,slot,
+        "pet",Number(selectedJackpots[0].awardAction.params&&selectedJackpots[0].awardAction.params[0])||0,
+        "roundNum",info.roundNum);
+      save();return r;
+    }
+    r.ret=1;log("local DivinationTrial rejected unsupported operation",operate);
+    return r;
+  }
   function makeOfflineSceneFight(req){
     var u=current||(typeof DM!=="undefined"&&DM.G&&DM.G().userInfo);
     if(u)current=u;
@@ -2811,6 +2972,13 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         Number(restoredTrialTower.dayCounts[0])||0,
         Number(restoredTrialTower.cangetTotalAward[0])||0,
         Number(restoredTrialTower.isgetTotalAward[0])||0);
+      var restoredDivination=normalizeOfflineDivinationTrial(current);
+      log("local save restored divination trial",Number(restoredDivination.roundNum)||0,
+        restoredDivination.confIdsOne.length,restoredDivination.confIdsTwo.length,
+        restoredDivination.confIdsThree.length,
+        [1,2,3,4,5].map(function(id){
+          return Number(restoredDivination.tasks[id]&&restoredDivination.tasks[id].finishNum)||0;
+        }).join(","));
       log("local save restored",String(current.baseInfo.moneyInfo&&current.baseInfo.moneyInfo.gold||0),Number(current.newSceneGradeInfo&&current.newSceneGradeInfo.sceneLevel||1));
       var restoredPet=current.petPackInfo&&current.petPackInfo.packArray&&current.petPackInfo.packArray[0]&&current.petPackInfo.packArray[0].pet;
       log("local save restored pet",Number(restoredPet&&restoredPet.level||0),String(restoredPet&&restoredPet.hp||0),String(restoredPet&&restoredPet.attack||0),String(restoredPet&&restoredPet.defense||0));
@@ -3194,6 +3362,9 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
       else if(Resp===rp.NewTaskInfoOperateRsp){
         r=makeOfflineTaskOperate(req,r);
       }
+      else if(Resp===rp.DivinationTrialRsp){
+        r=makeOfflineDivinationTrialRsp(req,r);
+      }
       else if(Resp===rp.TrialTowerOperateRsp){
         r=makeOfflineTrialTowerRsp(req,r);
       }
@@ -3497,6 +3668,125 @@ function makeOfflinePetGrowupEvolveRsp(req,r){
         "rewards",claim.awards&&claim.awards.length||0);
       save();
       return {pass:ok,query:query.ret,claim:claim.ret,duplicate:duplicate.ret,paid:paid.ret};
+    },
+    selfTestDivinationTrial:function(){
+      ensure();
+      var u=DM.G().userInfo,originalInfo=normalizeOfflineDivinationTrial(u),
+        oldLevel=Number(u.baseInfo.level)||1,
+        oldScene=Number(u.newSceneGradeInfo&&u.newSceneGradeInfo.sceneLevel)||1,
+        towerInfo=normalizeOfflineTrialTower(u),oldTower=Number(towerInfo.levels[0])||0,
+        baselineGenIds={};
+      (u.petStorageInfo&&u.petStorageInfo.petArray||[]).forEach(function(pet){
+        if(pet&&pet.genId!=null)baselineGenIds[String(pet.genId)]=true;
+      });
+      var rows=offlineTaskList("DIVINATION_TRIAL_CONF"),
+        taskRows=offlineTaskList("DIVINATION_TRIAL_TASK_CONF"),
+        validConfig=rows.length===245&&taskRows.length===5&&
+          [1,2,3,4,5].every(function(round){
+            return rows.filter(function(row){return Number(row.roundNum)===round;}).length===49;
+          });
+      u.activityInfo.divinationTrialInfo=new rp.DivinationTrialInfo();
+      var info=normalizeOfflineDivinationTrial(u),roundsOk=true,drawCount=0,claimCount=0,
+        gateRejectCount=0,duplicateRejectCount=0,petRewardCount=0;
+      function request(operate,awardIdx){
+        var req=new rp.DivinationTrialReq();req.operate=operate;
+        if(awardIdx!=null)req.awardIdx=awardIdx;
+        return makeOfflineDivinationTrialRsp(req,new rp.DivinationTrialRsp());
+      }
+      for(var round=1;round<=5;round++){
+        // Keep the previous rounds' gates met; set only the current gate one
+        // step below its configured threshold until early selection is rejected.
+        if(round===1){u.newSceneGradeInfo.sceneLevel=59;u.baseInfo.level=34;towerInfo.levels[0]=49;}
+        if(round===2){u.newSceneGradeInfo.sceneLevel=60;u.baseInfo.level=34;towerInfo.levels[0]=49;}
+        if(round===3){u.newSceneGradeInfo.sceneLevel=60;u.baseInfo.level=35;towerInfo.levels[0]=49;}
+        if(round===4){u.newSceneGradeInfo.sceneLevel=60;u.baseInfo.level=59;towerInfo.levels[0]=50;}
+        if(round===5){u.newSceneGradeInfo.sceneLevel=60;u.baseInfo.level=60;towerInfo.levels[0]=149;}
+        syncOfflineTaskProgress(u);
+        var taskCfg=taskRows.filter(function(row){return Number(row.roundNum)===round;})[0],
+          task=taskCfg&&info.tasks[Number(taskCfg.taskId)],
+          taskBefore=Number(task&&task.finishNum)||0,
+          query=request(0),queryOk=Number(query.ret)===0&&query.divinationTrialInfo===info;
+        var roundDrawOk=true;
+        for(var slot=0;slot<3;slot++){
+          var drawn=request(1,slot),ids=drawn.confIds||[],
+            confs=ids.map(localDivinationConfById),
+            jackpotCount=confs.filter(function(cfg){return cfg&&Number(cfg.jackpotType)===1;}).length,
+            uniqueIds=Object.create(null);
+          ids.forEach(function(id){uniqueIds[String(id)]=true;});
+          var valid=Number(drawn.ret)===0&&ids.length===10&&
+            Object.keys(uniqueIds).length===10&&jackpotCount===1&&
+            confs.every(function(cfg){return cfg&&Number(cfg.roundNum)===round;});
+          roundDrawOk=roundDrawOk&&valid;
+          drawCount++;
+        }
+        var duplicate=request(1,0);
+        if(Number(duplicate.ret)!==0)duplicateRejectCount++;
+        var selectedSlot=(round-1)%3,
+          early=request(2,selectedSlot),earlyRejected=Number(early.ret)!==0&&
+            Number(info.roundNum)===round-1;
+        if(earlyRejected)gateRejectCount++;
+        // Unlock this round using the exact threshold from the archived task row.
+        if(round===1)u.newSceneGradeInfo.sceneLevel=60;
+        if(round===2)u.baseInfo.level=35;
+        if(round===3)towerInfo.levels[0]=50;
+        if(round===4)u.baseInfo.level=60;
+        if(round===5)towerInfo.levels[0]=150;
+        syncOfflineTaskProgress(u);
+        var gateReady=Number(task&&task.finishNum)>=Number(taskCfg&&taskCfg.cond&&taskCfg.cond.needNum||1),
+          selectedIds=info[["confIdsOne","confIdsTwo","confIdsThree"][selectedSlot]]||[],
+          selectedJackpot=selectedIds.map(localDivinationConfById).filter(function(cfg){
+            return cfg&&Number(cfg.jackpotType)===1;
+          })[0],
+          expectedPet=Number(selectedJackpot&&selectedJackpot.awardAction&&
+            selectedJackpot.awardAction.params&&selectedJackpot.awardAction.params[0])||0,
+          petCountBefore=(u.petStorageInfo.petArray||[]).length,
+          chosen=request(2,selectedSlot),
+          petCountAfter=(u.petStorageInfo.petArray||[]).length,
+          newestPet=(u.petStorageInfo.petArray||[])[petCountAfter-1],
+          claimOk=Number(chosen.ret)===0&&Number(info.roundNum)===round&&
+            info.confIdsOne.length===0&&info.confIdsTwo.length===0&&info.confIdsThree.length===0&&
+            petCountAfter===petCountBefore+1&&Number(newestPet&&newestPet.id)===expectedPet;
+        if(claimOk)claimCount++;
+        else roundsOk=false;
+        if(!queryOk||!roundDrawOk||!earlyRejected||!gateReady||!claimOk)roundsOk=false;
+        var repeatClaim=request(2,selectedSlot);
+        if(Number(repeatClaim.ret)!==0)duplicateRejectCount++;
+        if(claimOk)petRewardCount++;
+        log("local DivinationTrial round test",round,
+          "query",queryOk?"PASS":"FAIL","draw",roundDrawOk?"PASS":"FAIL",
+          "gateBefore",taskBefore,"gateAfter",Number(task&&task.finishNum)||0,
+          "early",early.ret,"claim",chosen.ret,"pet",Number(newestPet&&newestPet.id)||0,
+          "roundNum",Number(info.roundNum)||0);
+      }
+      var completedQuery=request(0),
+        rejectAfterFive=request(1,0),
+        completedOk=Number(completedQuery.ret)===0&&Number(info.roundNum)===5&&
+          Number(rejectAfterFive.ret)!==0;
+      // Remove only the pets created by this self-test and restore the user's
+      // real activity/level/tower state before opening the original UI.
+      u.petStorageInfo.petArray=(u.petStorageInfo.petArray||[]).filter(function(pet){
+        return pet&&baselineGenIds[String(pet.genId)];
+      });
+      u.activityInfo.divinationTrialInfo=originalInfo;
+      u.baseInfo.level=oldLevel;
+      if(!u.newSceneGradeInfo)u.newSceneGradeInfo={};
+      u.newSceneGradeInfo.sceneLevel=oldScene;
+      towerInfo.levels[0]=oldTower;
+      normalizeOfflineDivinationTrial(u);
+      var ok=validConfig&&roundsOk&&drawCount===15&&claimCount===5&&
+        gateRejectCount===5&&duplicateRejectCount>=5&&petRewardCount===5&&completedOk;
+      log("local divination trial self-test",ok?"PASS":"FAIL",
+        "config",validConfig?"PASS":"FAIL","draws",drawCount,"claims",claimCount,
+        "gates",gateRejectCount,"duplicates",duplicateRejectCount,
+        "petRewards",petRewardCount,"completed",completedOk?"PASS":"FAIL");
+      save();
+      try{
+        if(typeof act!=="undefined"&&act.Divine&&act.Divine.Main&&act.Divine.Main.show){
+          act.Divine.Main.show();
+          log("local DivinationTrial actual entry opened");
+        }else log("local DivinationTrial actual entry unavailable");
+      }catch(e){log("local DivinationTrial actual entry error",e&&e.stack||e);}
+      return {pass:ok,rounds:claimCount,draws:drawCount,gates:gateRejectCount};
     },
     selfTestTrialTower:function(){
       ensure();
@@ -3979,14 +4269,14 @@ OVERLAY = """
 <div id="offline-task-button">任务</div>
 <div id="offline-return-button">返回主城</div>
 <div id="offline-menu-panel"><h3>超级精灵球 · 离线工具</h3><div id="offline-stat" class="stat">本地存档加载中…</div>
-<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="nature-power-test">验证自然之力</button><button data-act="life-tree-test">验证生命之树</button><button data-act="trial-tower-test">验证试炼之塔</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
+<button data-act="tasks">打开任务面板</button><button data-act="item-test">验证道具使用</button><button data-act="crystal-test">验证精灵水晶</button><button data-act="star-test">验证精灵升星</button><button data-act="star-card-test">验证魂灵卡升星</button><button data-act="evolution-test">验证精灵进化</button><button data-act="hangup-test">验证离线挂机</button><button data-act="quick-hangup-test">验证快速挂机</button><button data-act="seven-day-sign-test">验证七日签到</button><button data-act="nature-power-test">验证自然之力</button><button data-act="life-tree-test">验证生命之树</button><button data-act="trial-tower-test">验证试炼之塔</button><button data-act="divination-trial-test">验证占卜试炼</button><button data-act="gold">金币 +100万</button><button data-act="diamond">钻石 +1万</button><button data-act="cash">点券 +1万</button><button data-act="save">立即保存</button><button data-act="return-main">返回主城地图</button><button data-act="reset" class="danger">重置本地存档</button>
 <div class="offline-note">模拟训练师为本地虚构数据，不连接在线排行榜；离线解锁不涉及真实支付。</div></div>
 <script>
 (function(){var n=0,t=setInterval(function(){n++;if(!window.OfflineGame&&n<120)return;clearInterval(t);var b=document.getElementById("offline-menu-button"),p=document.getElementById("offline-menu-panel"),s=document.getElementById("offline-stat"),tb=document.getElementById("offline-task-button"),rb=document.getElementById("offline-return-button");if(!b||!p)return;
 if(tb)tb.onclick=function(){if(window.OfflineGame)OfflineGame.openTasks(1);};
 if(rb)rb.onclick=function(){if(window.OfflineGame)OfflineGame.returnToAdventure();};
 b.onclick=function(){p.style.display=p.style.display==="block"?"none":"block";if(window.OfflineGame)s.textContent=JSON.stringify(OfflineGame.getState());};
-p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="nature-power-test")OfflineGame.selfTestNaturePower();if(a==="life-tree-test")OfflineGame.selfTestLifeTree();if(a==="trial-tower-test")OfflineGame.selfTestTrialTower();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
+p.onclick=function(e){var a=e.target&&e.target.getAttribute("data-act");if(!a||!window.OfflineGame)return;try{if(a==="tasks")OfflineGame.openTasks(1);if(a==="item-test")OfflineGame.selfTestItemUse();if(a==="crystal-test")OfflineGame.selfTestPetCrystal();if(a==="star-test")OfflineGame.selfTestPetStarUp();if(a==="star-card-test")OfflineGame.selfTestPetStarCard();if(a==="evolution-test")OfflineGame.selfTestPetEvolution();if(a==="hangup-test")OfflineGame.selfTestHangup();if(a==="quick-hangup-test")OfflineGame.selfTestQuickHangup();if(a==="seven-day-sign-test")OfflineGame.selfTestSevenDaySign();if(a==="nature-power-test")OfflineGame.selfTestNaturePower();if(a==="life-tree-test")OfflineGame.selfTestLifeTree();if(a==="trial-tower-test")OfflineGame.selfTestTrialTower();if(a==="divination-trial-test")OfflineGame.selfTestDivinationTrial();if(a==="gold")OfflineGame.addGold(1000000);if(a==="diamond")OfflineGame.addDiamond(10000);if(a==="cash")OfflineGame.addCash(10000);if(a==="save")OfflineGame.saveAndNotify();if(a==="return-main"){OfflineGame.returnToAdventure();p.style.display="none";}if(a==="reset"&&confirm("确定清除本设备的离线存档吗？"))OfflineGame.reset();s.textContent=JSON.stringify(OfflineGame.getState());}catch(x){console.error(x);}};
 },250);})();
 </script>
 """

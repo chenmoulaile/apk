@@ -110,6 +110,8 @@ jobs:
           test -s tmp/offline-build/game/res/items/1/1001018.png
           python3 work/recovered/restore_atlas_group.py --root tmp/offline-build/game --group TrialTower --background bg2.jpg
           test -s tmp/offline-build/game/atlas/TrialTower.atlas
+          python3 work/recovered/restore_atlas_group.py --root tmp/offline-build/game --group Divine --background bg1.jpg
+          test -s tmp/offline-build/game/atlas/Divine.atlas
           tmp/offline-build/asset-venv/bin/python work/recovered/derive_atlas_assets.py tmp/offline-build/game
           test -s tmp/offline-build/game/index.html
           test -s tmp/offline-build/game/code.js
