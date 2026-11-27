@@ -413,6 +413,8 @@ if grep -q "local pet seed attrs 3101 2200 1200 13000" tmp/offline-test/logcat.t
   && ! grep -q "Failed to load: atlas/equipmentAlert.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/ElfSummon.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/Town.atlas" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: res/items/1/1001017.png" tmp/offline-test/logcat.txt \
+  && ! grep -q "Failed to load: res/items/1/1001018.png" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/LifeTree.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "Failed to load: atlas/TrialTower.atlas" tmp/offline-test/logcat.txt \
   && ! grep -q "GroupLoader.*TrialTower.*Load Error" tmp/offline-test/logcat.txt \

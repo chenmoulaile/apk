@@ -55,6 +55,12 @@ def main() -> int:
     parser.add_argument("--root", type=Path, required=True, help="H5 client root")
     parser.add_argument("--group", default="LifeTree", help="Laya atlas group name")
     parser.add_argument("--background", default="bg1.png", help="additional loose group background asset")
+    parser.add_argument(
+        "--extra-file",
+        action="append",
+        default=[],
+        help="additional exact H5-relative file to restore (may be repeated)",
+    )
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL)
     args = parser.parse_args()
 
@@ -96,6 +102,12 @@ def main() -> int:
     # The main Life Tree panel uses this separately declared background image.
     loose_bg = f"atlas/{group}/{args.background}"
     restored[loose_bg] = download(args.base_url, root, loose_bg)
+
+    # Some item images are loaded by numeric ID from the original UI rather than
+    # being referenced literally by code.js or zip.txt. Restore them explicitly.
+    for extra_file in args.extra_file:
+        extra_rel = str(safe_relative(extra_file))
+        restored[extra_rel] = download(args.base_url, root, extra_rel)
 
     for path, record in restored.items():
         records[path] = record

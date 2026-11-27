@@ -94,6 +94,9 @@ CORE_FILES = [
     # The level-50 Life Tree panel is runtime-loaded by group name, not a literal .atlas path.
     "atlas/LifeTree.atlas",
     "atlas/LifeTree/bg1.png",
+    # Life Tree material icons are selected by numeric item ID at runtime.
+    "res/items/1/1001017.png",
+    "res/items/1/1001018.png",
     "atlas/TrialTower.atlas",
     "atlas/TrialTower/bg2.jpg",
     # Daily/weekly task progress icons and the summon task reward image.
